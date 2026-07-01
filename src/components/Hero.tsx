@@ -1,13 +1,21 @@
 import { Leaf } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export default function Hero() {
+interface HeroProps {
+  settings?: Record<string, string>;
+}
+
+export default function Hero({ settings }: HeroProps) {
+  const bannerTitle = settings?.['banner_title'] || 'Gia Phả Gia Đình';
+  const bannerSubtitle = settings?.['banner_subtitle'] || 'Cụ Nghiêm Cung';
+  const bannerImage = settings?.['banner_image'] || 'https://images.unsplash.com/photo-1605369572399-05d8d64a0f6e?q=80&w=2000&auto=format&fit=crop';
+
   return (
     <div id="hero-section" className="relative bg-[#3e2a16] h-[220px] md:h-[300px] flex items-center justify-center overflow-hidden w-full">
       {/* Decorative background overlay */}
       <div 
         className="absolute inset-0 opacity-25 bg-center bg-cover" 
-        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1605369572399-05d8d64a0f6e?q=80&w=2000&auto=format&fit=crop')" }}
+        style={{ backgroundImage: `url('${bannerImage}')` }}
       ></div>
       <div className="absolute inset-0 bg-gradient-to-t from-[#2a1d0f] to-transparent"></div>
       
@@ -31,7 +39,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.2 }}
           className="text-3xl md:text-5xl lg:text-5xl font-bold text-[#fdfbf7] uppercase tracking-widest font-playfair drop-shadow-lg mb-3"
         >
-          Gia Phả Gia Đình
+          {bannerTitle}
         </motion.h1>
         
         <motion.h2 
@@ -40,7 +48,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="text-2xl md:text-3.5xl lg:text-4xl font-bold text-[#d6b583] uppercase tracking-widest font-playfair drop-shadow-md"
         >
-          Cụ Nghiêm Cung
+          {bannerSubtitle}
         </motion.h2>
       </div>
     </div>

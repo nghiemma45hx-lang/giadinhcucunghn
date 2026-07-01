@@ -41,8 +41,16 @@ CREATE TABLE IF NOT EXISTS announcements (
   content TEXT NOT NULL,
   date TEXT NOT NULL,
   category TEXT NOT NULL,
+  "imageUrl" TEXT,
+  "youtubeUrl" TEXT,
+  "driveUrl" TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Tự động thêm cột nếu bảng announcements đã tồn tại trước đó
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS "imageUrl" TEXT;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS "youtubeUrl" TEXT;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS "driveUrl" TEXT;
 
 -- 3. Tạo bảng memories (Bức tường tưởng nhớ)
 CREATE TABLE IF NOT EXISTS memories (
@@ -58,10 +66,27 @@ CREATE TABLE IF NOT EXISTS memories (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 4. Tạo bảng settings (Cấu hình hệ thống)
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tự động thêm cấu hình mặc định nếu chưa có
+INSERT INTO settings (key, value) VALUES
+  ('banner_title', 'Gia Phả Gia Đình'),
+  ('banner_subtitle', 'Cụ Nghiêm Cung'),
+  ('banner_image', 'https://images.unsplash.com/photo-1605369572399-05d8d64a0f6e?q=80&w=2000&auto=format&fit=crop'),
+  ('clan_overview_title', 'Tổng Quan Gia Tộc'),
+  ('clan_overview_content', 'Cây có gốc mới nở cành xanh ngọn, nước có nguồn mới bể rộng sông sâu. Gia phả gia đình Cụ **Nghiêm Cung** được lập ra nhằm ghi chép lại nguồn cội, công đức tổ tiên, ghi nhận bước phát triển qua các thế hệ dòng họ để làm gương sáng cho đời sau.\n\nKhởi nguồn từ cụ cố **Nghiêm Điều (Chu)** và cụ bà **Lê Thị Mai** ở đất Ứng Hòa, Hà Nội, trải qua nhiều thăng trầm lịch sử, con cháu Nghiêm gia luôn luôn giữ vững nền nếp gia phong, hiếu học, đoàn kết, đóng góp tích cực cho đất nước và gìn giữ văn hóa gia đình tốt đẹp.\n\nHệ thống Gia phả số hóa này là sợi dây liên kết vô hình giữa quá khứ và hiện tại, giúp từng thành viên tìm về cội nguồn linh thiêng, gắn kết tình thân chi ngành bền chặt hơn bao giờ hết.')
+ON CONFLICT (key) DO NOTHING;
+
 -- Bật phân quyền public đọc ghi (Disable RLS để truy cập nhanh từ app client)
 ALTER TABLE members DISABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements DISABLE ROW LEVEL SECURITY;
 ALTER TABLE memories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
 `;
 
 // Helper to check if an error is due to missing tables
@@ -261,3 +286,47 @@ export async function dbAddMemory(mem: MemoryWall): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * 4. QUẢN LÝ CẤU HÌNH HỆ THỐNG (SETTINGS)
+ */
+export async function dbGetSettings(): Promise<{ data: Record<string, string>; needsSetup: boolean; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('settings')
+      .select('*');
+
+    if (error) {
+      if (isTableMissingError(error)) {
+        return { data: {}, needsSetup: true };
+      }
+      throw error;
+    }
+
+    const settingsMap: Record<string, string> = {};
+    if (data) {
+      data.forEach((item: any) => {
+        settingsMap[item.key] = item.value;
+      });
+    }
+
+    return { data: settingsMap, needsSetup: false };
+  } catch (err: any) {
+    console.error('Lỗi khi lấy cấu hình từ Supabase:', err);
+    return { data: {}, needsSetup: false, error: err.message };
+  }
+}
+
+export async function dbSaveSetting(key: string, value: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('settings')
+      .upsert({ key, value });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error(`Lỗi khi lưu cấu hình ${key} vào Supabase:`, err);
+    return false;
+  }
+}
+

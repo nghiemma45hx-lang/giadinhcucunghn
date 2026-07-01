@@ -14,7 +14,7 @@ import { INITIAL_MEMBERS, INITIAL_ANNOUNCEMENTS, INITIAL_MEMORIES } from './init
 import { 
   dbGetMembers, dbAddMember, dbUpdateMember, dbDeleteMember,
   dbGetAnnouncements, dbAddAnnouncement, dbUpdateAnnouncement, dbDeleteAnnouncement,
-  dbGetMemories, dbAddMemory, SUPABASE_SQL_SETUP 
+  dbGetMemories, dbAddMemory, dbGetSettings, dbSaveSetting, SUPABASE_SQL_SETUP 
 } from './supabaseClient';
 import { Star, Database, Copy, Check, AlertTriangle, X, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -34,6 +34,17 @@ export default function App() {
   const [memories, setMemories] = useState<MemoryWall[]>(() => {
     const saved = localStorage.getItem('nghiem_memories');
     return saved ? JSON.parse(saved) : INITIAL_MEMORIES;
+  });
+
+  const [settings, setSettings] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('nghiem_settings');
+    return saved ? JSON.parse(saved) : {
+      banner_title: 'Gia Phả Gia Đình',
+      banner_subtitle: 'Cụ Nghiêm Cung',
+      banner_image: 'https://images.unsplash.com/photo-1605369572399-05d8d64a0f6e?q=80&w=2000&auto=format&fit=crop',
+      clan_overview_title: 'Tổng Quan Gia Tộc',
+      clan_overview_content: 'Cây có gốc mới nở cành xanh ngọn, nước có nguồn mới bể rộng sông sâu. Gia phả gia đình Cụ **Nghiêm Cung** được lập ra nhằm ghi chép lại nguồn cội, công đức tổ tiên, ghi nhận bước phát triển qua các thế hệ dòng họ để làm gương sáng cho đời sau.\n\nKhởi nguồn từ cụ cố **Nghiêm Điều (Chu)** và cụ bà **Lê Thị Mai** ở đất Ứng Hòa, Hà Nội, trải qua nhiều thăng trầm lịch sử, con cháu Nghiêm gia luôn luôn giữ vững nền nếp gia phong, hiếu học, đoàn kết, đóng góp tích cực cho đất nước và gìn giữ văn hóa gia đình tốt đẹp.\n\nHệ thống Gia phả số hóa này là sợi dây liên kết vô hình giữa quá khứ và hiện tại, giúp từng thành viên tìm về cội nguồn linh thiêng, gắn kết tình thân chi ngành bền chặt hơn bao giờ hết.'
+    };
   });
 
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
@@ -68,8 +79,9 @@ export default function App() {
       const membersRes = await dbGetMembers();
       const announcementsRes = await dbGetAnnouncements();
       const memoriesRes = await dbGetMemories();
+      const settingsRes = await dbGetSettings();
 
-      if (membersRes.needsSetup || announcementsRes.needsSetup || memoriesRes.needsSetup) {
+      if (membersRes.needsSetup || announcementsRes.needsSetup || memoriesRes.needsSetup || settingsRes.needsSetup) {
         setSupabaseNeedsSetup(true);
       } else {
         setSupabaseNeedsSetup(false);
@@ -81,6 +93,9 @@ export default function App() {
         }
         if (memoriesRes.data) {
           setMemories(memoriesRes.data);
+        }
+        if (settingsRes.data && Object.keys(settingsRes.data).length > 0) {
+          setSettings(settingsRes.data);
         }
       }
     } catch (err) {
@@ -108,6 +123,10 @@ export default function App() {
   }, [memories]);
 
   useEffect(() => {
+    localStorage.setItem('nghiem_settings', JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
     if (currentUser) {
       localStorage.setItem('nghiem_current_user', JSON.stringify(currentUser));
     } else {
@@ -118,6 +137,16 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('nghiem_current_view', currentView);
   }, [currentView]);
+
+  const handleUpdateSetting = async (key: string, value: string) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    if (!supabaseNeedsSetup) {
+      await dbSaveSetting(key, value);
+    }
+  };
 
   // 3. Hàm xử lý CRUD Thành Viên kết nối Supabase
   const [membersHistory, setMembersHistory] = useState<Member[][]>([]);
@@ -251,7 +280,7 @@ export default function App() {
       )}
 
       {/* 1. HERO BANNER */}
-      <Hero />
+      <Hero settings={settings} />
 
 
       {/* 2. NAVBAR NAVIGATION */}
@@ -294,6 +323,7 @@ export default function App() {
                 currentUser={currentUser}
                 onViewChange={setCurrentView}
                 onLoginShow={() => setShowLoginModal(true)}
+                settings={settings}
               />
             )}
 
@@ -332,6 +362,8 @@ export default function App() {
                 members={members}
                 announcements={announcements}
                 accounts={accounts}
+                settings={settings}
+                onUpdateSetting={handleUpdateSetting}
                 onAddMember={handleAddMember}
                 onUpdateMember={handleUpdateMember}
                 onDeleteMember={handleDeleteMember}

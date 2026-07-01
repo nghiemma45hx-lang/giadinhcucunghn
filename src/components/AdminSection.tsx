@@ -3,7 +3,7 @@ import { Member, Announcement, UserAccount } from '../types';
 import { 
   Users, Megaphone, Plus, Edit2, Trash2, Save, X, 
   UserPlus, CheckCircle, AlertCircle, RefreshCw, KeyRound,
-  FileText, FileSpreadsheet, Upload
+  FileText, FileSpreadsheet, Upload, Settings, Layout, Image, Video, Globe, Eye
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { parseAndCalculateAges, convertSolarToLunar } from '../utils/lunarConverter';
@@ -14,6 +14,8 @@ interface AdminSectionProps {
   members: Member[];
   announcements: Announcement[];
   accounts: UserAccount[];
+  settings?: Record<string, string>;
+  onUpdateSetting?: (key: string, value: string) => void;
   onAddMember: (member: Member) => void;
   onUpdateMember: (member: Member) => void;
   onDeleteMember: (id: string) => void;
@@ -31,6 +33,8 @@ export default function AdminSection({
   members,
   announcements,
   accounts,
+  settings,
+  onUpdateSetting,
   onAddMember,
   onUpdateMember,
   onDeleteMember,
@@ -43,8 +47,8 @@ export default function AdminSection({
   onUndoMembers,
   canUndoMembers = false
 }: AdminSectionProps) {
-  // Tabs: members or announcements
-  const [activeTab, setActiveTab] = useState<'members' | 'announcements' | 'accounts'>('members');
+  // Tabs: members or announcements or accounts or settings
+  const [activeTab, setActiveTab] = useState<'members' | 'announcements' | 'accounts' | 'settings'>('members');
 
   // Trạng thái Form Thành Viên
   const [showMemberForm, setShowMemberForm] = useState(false);
@@ -77,6 +81,9 @@ export default function AdminSection({
   const [annContent, setAnnContent] = useState('');
   const [annCategory, setAnnCategory] = useState<'QUAN TRỌNG' | 'CẬP NHẬT' | 'TIN BUỒN' | 'TIN VUI'>('CẬP NHẬT');
   const [annDate, setAnnDate] = useState('');
+  const [annImageUrl, setAnnImageUrl] = useState('');
+  const [annYoutubeUrl, setAnnYoutubeUrl] = useState('');
+  const [annDriveUrl, setAnnDriveUrl] = useState('');
 
   // Sửa lỗi / Hiển thị thông báo thành công
   const [toastMessage, setToastMessage] = useState('');
@@ -831,6 +838,9 @@ export default function AdminSection({
     setAnnContent(ann.content);
     setAnnCategory(ann.category);
     setAnnDate(ann.date);
+    setAnnImageUrl(ann.imageUrl || '');
+    setAnnYoutubeUrl(ann.youtubeUrl || '');
+    setAnnDriveUrl(ann.driveUrl || '');
     setShowAnnForm(true);
   };
 
@@ -840,6 +850,9 @@ export default function AdminSection({
     setAnnContent('');
     setAnnCategory('CẬP NHẬT');
     setAnnDate('');
+    setAnnImageUrl('');
+    setAnnYoutubeUrl('');
+    setAnnDriveUrl('');
     setShowAnnForm(false);
   };
 
@@ -855,7 +868,10 @@ export default function AdminSection({
       title: annTitle,
       content: annContent,
       category: annCategory,
-      date: annDate || new Date().toISOString().split('T')[0]
+      date: annDate || new Date().toISOString().split('T')[0],
+      imageUrl: annImageUrl || undefined,
+      youtubeUrl: annYoutubeUrl || undefined,
+      driveUrl: annDriveUrl || undefined
     };
 
     if (annId) {
@@ -1188,6 +1204,16 @@ export default function AdminSection({
             }`}
           >
             <KeyRound className="w-4 h-4" /> Tài khoản Quản trị
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`py-2 px-4 text-xs font-bold uppercase transition flex items-center gap-1.5 focus:outline-none cursor-pointer ${
+              activeTab === 'settings' 
+                ? 'border-b-2 border-[#b8956b] text-[#6b4724]' 
+                : 'text-gray-400 hover:text-[#6b4724]'
+            }`}
+          >
+            <Settings className="w-4 h-4" /> Cấu hình hệ thống
           </button>
         </div>
       </div>
@@ -1806,6 +1832,45 @@ export default function AdminSection({
                   ></textarea>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-dashed border-[#eadecb] pt-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1 flex items-center gap-1">
+                      <Image className="w-3.5 h-3.5 text-amber-600" /> Đường dẫn Hình ảnh (Link/URL)
+                    </label>
+                    <input 
+                      type="url" 
+                      value={annImageUrl}
+                      onChange={(e) => setAnnImageUrl(e.target.value)}
+                      placeholder="Dán link ảnh (Unsplash, Drive public...)"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1 flex items-center gap-1">
+                      <Video className="w-3.5 h-3.5 text-red-600" /> Video từ YouTube (URL)
+                    </label>
+                    <input 
+                      type="url" 
+                      value={annYoutubeUrl}
+                      onChange={(e) => setAnnYoutubeUrl(e.target.value)}
+                      placeholder="ví dụ: https://www.youtube.com/watch?v=..."
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1 flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5 text-blue-600" /> Link File/Biểu mẫu Google Drive
+                    </label>
+                    <input 
+                      type="url" 
+                      value={annDriveUrl}
+                      onChange={(e) => setAnnDriveUrl(e.target.value)}
+                      placeholder="Dán link tài liệu từ Google Drive..."
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm"
+                    />
+                  </div>
+                </div>
+
                 <div className="flex gap-2 justify-end">
                   <button
                     type="button"
@@ -1918,6 +1983,172 @@ export default function AdminSection({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* 4. TAB: CẤU HÌNH HỆ THỐNG */}
+      {activeTab === 'settings' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-200">
+          {/* Form cấu hình */}
+          <div className="bg-white rounded-lg border border-[#eadecb] p-6 shadow-xs space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-[#6b4724] font-playfair border-b border-dashed border-[#eadecb] pb-2 flex items-center gap-1.5 uppercase tracking-wide">
+                <Settings className="w-5 h-5 text-[#b8956b]" /> Cấu hình Nội dung Trang chủ
+              </h3>
+              <p className="text-xs text-[#8b7355] mt-1 font-sans">
+                Thay đổi Banner chính, Tổng quan dòng họ, hình ảnh, khẩu hiệu một cách trực quan, đồng bộ lên cơ sở dữ liệu đám mây.
+              </p>
+            </div>
+
+            <div className="space-y-5 text-xs">
+              {/* PHẦN 1: BANNER HERO */}
+              <div className="bg-[#faf8f2] p-4 rounded-lg border border-[#eadecb] space-y-4">
+                <h4 className="font-bold text-[#6b4724] uppercase tracking-wide flex items-center gap-1.5 text-[11px]">
+                  <Layout className="w-4 h-4 text-[#b8956b]" /> 1. Khung Banner Đầu Trang (Hero)
+                </h4>
+                
+                <div className="space-y-3 font-sans">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Tiêu Đề Lớn Banner (Banner Title)</label>
+                    <input 
+                      type="text" 
+                      value={settings?.banner_title || "GIA PHẢ CHI NGHIÊM GIA"}
+                      onChange={(e) => onUpdateSetting?.('banner_title', e.target.value)}
+                      placeholder="ví dụ: GIA PHẢ CHI NGHIÊM GIA"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:ring-1 focus:ring-[#b8956b] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Tiêu Đề Phụ / Câu Châm Ngôn (Banner Subtitle)</label>
+                    <input 
+                      type="text" 
+                      value={settings?.banner_subtitle || "Uống Nước Nhớ Nguồn - Kính Tổ Trọng Tông"}
+                      onChange={(e) => onUpdateSetting?.('banner_subtitle', e.target.value)}
+                      placeholder="ví dụ: Uống Nước Nhớ Nguồn..."
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:ring-1 focus:ring-[#b8956b] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Hình nền Banner (Nhập URL hình ảnh công khai)</label>
+                    <input 
+                      type="text" 
+                      value={settings?.banner_image || "https://images.unsplash.com/photo-1507608869274-d3177c8bb4c7?auto=format&fit=crop&q=80&w=2000"}
+                      onChange={(e) => onUpdateSetting?.('banner_image', e.target.value)}
+                      placeholder="Nhập đường dẫn URL ảnh (Unsplash, Imgur, Drive public...)"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:ring-1 focus:ring-[#b8956b] focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* PHẦN 2: TỔNG QUAN GIA TỘC */}
+              <div className="bg-[#faf8f2] p-4 rounded-lg border border-[#eadecb] space-y-4">
+                <h4 className="font-bold text-[#6b4724] uppercase tracking-wide flex items-center gap-1.5 text-[11px]">
+                  <Globe className="w-4 h-4 text-[#b8956b]" /> 2. Phần Tổng Quan Gia Tộc (Home Section)
+                </h4>
+
+                <div className="space-y-3 font-sans">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Tiêu Đề Tổng Quan</label>
+                    <input 
+                      type="text" 
+                      value={settings?.clan_title || "TỔNG QUAN DÒNG HỌ NGHIÊM GIA CHI TRƯỞNG"}
+                      onChange={(e) => onUpdateSetting?.('clan_title', e.target.value)}
+                      placeholder="ví dụ: TỔNG QUAN DÒNG HỌ NGHIÊM GIA CHI TRƯỞNG"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:ring-1 focus:ring-[#b8956b] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1 flex justify-between items-center">
+                      <span>Nội Dung Giới Thiệu (Hỗ trợ định dạng in đậm: **chữ in đậm**)</span>
+                      <span className="text-[10px] text-gray-400 font-normal">Xuống dòng để tạo đoạn mới</span>
+                    </label>
+                    <textarea 
+                      rows={10}
+                      value={settings?.clan_content || ""}
+                      onChange={(e) => onUpdateSetting?.('clan_content', e.target.value)}
+                      placeholder="Nhập lịch sử sơ lược dòng họ, nguồn gốc tổ tiên, di huấn của các cụ..."
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:ring-1 focus:ring-[#b8956b] focus:outline-none font-sans leading-relaxed resize-y"
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded p-3 flex gap-2 font-sans">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-[10px] text-amber-800 leading-normal">
+                  <strong>Hệ thống lưu tự động:</strong> Mỗi thay đổi trên các trường nhập liệu phía trên được đồng bộ trực tiếp lên cơ sở dữ liệu đám mây trực tuyến Supabase. Sự thay đổi sẽ xuất hiện ngay lập tức trên trang chủ của người truy cập.
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    showToast("Đã đồng bộ toàn bộ cấu hình hệ thống thành công!");
+                  }}
+                  className="bg-[#6b4724] hover:bg-[#3e2a16] text-white font-bold py-2.5 px-6 rounded text-xs transition uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-xs font-sans"
+                >
+                  <CheckCircle className="w-4 h-4 text-[#d6b583]" /> Hoàn Tất Cấu Hình
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Khung Xem Trước Trực Quan (Live Preview Canvas) */}
+          <div className="bg-[#faf8f2] rounded-lg border border-[#eadecb] p-6 shadow-xs flex flex-col space-y-6">
+            <div>
+              <h3 className="text-sm font-bold text-[#6b4724] font-playfair border-b border-dashed border-[#eadecb] pb-2 flex items-center gap-1.5 uppercase tracking-wide">
+                <Eye className="w-4 h-4 text-[#b8956b]" /> Bản Xem Trước Trực Quan (Live Preview)
+              </h3>
+              <p className="text-[11px] text-[#8b7355] mt-1 font-sans">
+                Đây là giao diện thực tế mà người dùng sẽ thấy ngay lập tức sau khi bạn cập nhật nội dung.
+              </p>
+            </div>
+
+            {/* Simulated Hero preview */}
+            <div className="space-y-2">
+              <span className="font-mono text-[10px] text-gray-400 font-bold">PREVIEW BANNER HERO:</span>
+              <div 
+                className="relative h-44 rounded-lg overflow-hidden flex flex-col items-center justify-center text-center p-4 bg-cover bg-center shadow-md border border-[#eadecb]"
+                style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url(${settings?.banner_image || 'https://images.unsplash.com/photo-1507608869274-d3177c8bb4c7?auto=format&fit=crop&q=80&w=2000'})` }}
+              >
+                <h1 className="text-base md:text-xl font-bold font-playfair text-[#fdfbf7] uppercase tracking-widest drop-shadow-md">
+                  {settings?.banner_title || "GIA PHẢ CHI NGHIÊM GIA"}
+                </h1>
+                <div className="w-16 h-[1.5px] bg-[#b8956b] my-2"></div>
+                <p className="text-xs italic text-[#eadecb] max-w-sm font-sans drop-shadow-xs leading-normal">
+                  {settings?.banner_subtitle || "Uống Nước Nhớ Nguồn - Kính Tổ Trọng Tông"}
+                </p>
+              </div>
+            </div>
+
+            {/* Simulated Clan Overview preview */}
+            <div className="space-y-2 flex-1 flex flex-col">
+              <span className="font-mono text-[10px] text-gray-400 font-bold">PREVIEW TỔNG QUAN DÒNG HỌ:</span>
+              <div className="bg-white border border-[#eadecb] rounded-lg p-5 flex-1 shadow-inner overflow-y-auto space-y-4 max-h-[350px]">
+                <h2 className="text-sm md:text-base font-bold text-[#6b4724] font-playfair border-b-2 border-[#b8956b]/30 pb-1.5 uppercase tracking-wide text-center leading-normal">
+                  {settings?.clan_title || "TỔNG QUAN DÒNG HỌ NGHIÊM GIA CHI TRƯỞNG"}
+                </h2>
+                
+                <div className="text-xs text-[#5c4021] leading-relaxed text-justify space-y-3 whitespace-pre-line font-sans">
+                  {(settings?.clan_content || "").split('\n\n').map((para, idx) => {
+                    // Simple inline bold parser **text** -> <strong>text</strong>
+                    const parts = para.split('**');
+                    return (
+                      <p key={idx} className="indent-4">
+                        {parts.map((part, i) => (i % 2 === 1) ? <strong key={i} className="text-[#3e2a16] font-bold">{part}</strong> : part)}
+                      </p>
+                    );
+                  })}
+                  {!(settings?.clan_content) && (
+                    <p className="text-gray-400 italic text-center py-8">Chưa có nội dung giới thiệu dòng họ...</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -27,6 +27,9 @@ export interface Announcement {
   content: string;
   date: string;
   category: 'QUAN TRỌNG' | 'CẬP NHẬT' | 'TIN BUỒN' | 'TIN VUI';
+  imageUrl?: string;
+  youtubeUrl?: string;
+  driveUrl?: string;
 }
 
 export interface MemoryWall {

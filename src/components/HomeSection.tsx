@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, UserCog, ShieldCheck, FileText, Download, Megaphone, BookOpen, Fan, ArrowRight, Shield } from 'lucide-react';
+import { Home, UserCog, ShieldCheck, FileText, Download, Megaphone, BookOpen, Fan, ArrowRight, Shield, X, ExternalLink, Image, Video } from 'lucide-react';
 import { Announcement, Member, UserAccount } from '../types';
 import { exportToWord } from '../utils';
 import { motion } from 'motion/react';
@@ -10,6 +10,7 @@ interface HomeSectionProps {
   currentUser: UserAccount | null;
   onViewChange: (view: string) => void;
   onLoginShow: () => void;
+  settings?: Record<string, string>;
 }
 
 export default function HomeSection({
@@ -17,9 +18,34 @@ export default function HomeSection({
   announcements,
   currentUser,
   onViewChange,
-  onLoginShow
+  onLoginShow,
+  settings
 }: HomeSectionProps) {
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedAnn, setSelectedAnn] = useState<Announcement | null>(null);
+
+  // Parse dynamic Settings
+  const overviewTitle = settings?.['clan_title'] || settings?.['clan_overview_title'] || 'Tổng Quan Gia Tộc';
+  const overviewContent = settings?.['clan_content'] || settings?.['clan_overview_content'] || 
+    'Cây có gốc mới nở cành xanh ngọn, nước có nguồn mới bể rộng sông sâu. Gia phả gia đình Cụ **Nghiêm Cung** được lập ra nhằm ghi chép lại nguồn cội, công đức tổ tiên, ghi nhận bước phát triển qua các thế hệ dòng họ để làm gương sáng cho đời sau.\n\nKhởi nguồn từ cụ cố **Nghiêm Điều (Chu)** và cụ bà **Lê Thị Mai** ở đất Ứng Hòa, Hà Nội, trải qua nhiều thăng trầm lịch sử, con cháu Nghiêm gia luôn luôn giữ vững nền nếp gia phong, hiếu học, đoàn kết, đóng góp tích cực cho đất nước và gìn giữ văn hóa gia đình tốt đẹp.\n\nHệ thống Gia phả số hóa này là sợi dây liên kết vô hình giữa quá khứ và hiện tại, giúp từng thành viên tìm về cội nguồn linh thiêng, gắn kết tình thân chi ngành bền chặt hơn bao giờ hết.';
+
+  const getYoutubeEmbedUrl = (url?: string) => {
+    if (!url) return '';
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : '';
+  };
+
+  const formatTextWithBold = (text: string) => {
+    if (!text) return '';
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
 
   // Thống kê nhanh
   const generationCount = Array.from(new Set(members.map(m => m.generation))).length;
@@ -111,19 +137,15 @@ export default function HomeSection({
           </div>
           
           <h2 className="text-2xl font-bold text-[#6b4724] mb-4 font-playfair flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-[#b8956b]" /> Tổng Quan Gia Tộc
+            <BookOpen className="w-6 h-6 text-[#b8956b]" /> {overviewTitle}
           </h2>
           
           <div className="text-[#5a3d1c] leading-relaxed space-y-4 text-justify">
-            <p className="indent-6">
-              Cây có gốc mới nở cành xanh ngọn, nước có nguồn mới bể rộng sông sâu. Gia phả gia đình Cụ <strong>Nghiêm Cung</strong> được lập ra nhằm ghi chép lại nguồn cội, công đức tổ tiên, ghi nhận bước phát triển qua các thế hệ dòng họ để làm gương sáng cho đời sau.
-            </p>
-            <p className="indent-6">
-              Khởi nguồn từ cụ cố <strong>Nghiêm Điều (Chu)</strong> và cụ bà <strong>Lê Thị Mai</strong> ở đất Ứng Hòa, Hà Nội, trải qua nhiều thăng trầm lịch sử, con cháu Nghiêm gia luôn luôn giữ vững nền nếp gia phong, hiếu học, đoàn kết, đóng góp tích cực cho đất nước và gìn giữ văn hóa gia đình tốt đẹp.
-            </p>
-            <p className="indent-6">
-              Hệ thống Gia phả số hóa này là sợi dây liên kết vô hình giữa quá khứ và hiện tại, giúp từng thành viên tìm về cội nguồn linh thiêng, gắn kết tình thân chi ngành bền chặt hơn bao giờ hết.
-            </p>
+            {overviewContent.split('\n\n').map((paragraph, pIdx) => (
+              <p key={pIdx} className="indent-6">
+                {formatTextWithBold(paragraph)}
+              </p>
+            ))}
           </div>
 
           {/* Quick Stats Grid */}
@@ -203,7 +225,11 @@ export default function HomeSection({
               <p className="text-sm text-[#8b7355] italic text-center py-4">Chưa có thông báo nào mới.</p>
             ) : (
               announcements.map((ann, idx) => (
-                <div key={ann.id} className={`pt-3 ${idx === 0 ? 'pt-0' : ''}`}>
+                <div 
+                  key={ann.id} 
+                  className={`pt-3 pb-2 cursor-pointer hover:bg-amber-50/50 px-2 rounded-md transition ${idx === 0 ? 'pt-2' : ''}`}
+                  onClick={() => setSelectedAnn(ann)}
+                >
                   <span className={`inline-block px-2 py-0.5 text-[9px] font-bold rounded mb-1 ${
                     ann.category === 'QUAN TRỌNG' ? 'bg-red-100 text-red-700' :
                     ann.category === 'CẬP NHẬT' ? 'bg-blue-100 text-blue-700' :
@@ -211,12 +237,34 @@ export default function HomeSection({
                   }`}>
                     {ann.category}
                   </span>
-                  <h4 className="text-sm font-bold text-[#6b4724] hover:text-[#b8956b] transition cursor-pointer mb-1 line-clamp-2">
+                  <h4 className="text-sm font-bold text-[#6b4724] hover:text-[#b8956b] transition mb-1 line-clamp-2">
                     {ann.title}
                   </h4>
                   <p className="text-xs text-[#8b7355] line-clamp-3 mb-1.5 leading-relaxed">
                     {ann.content}
                   </p>
+
+                  {/* Indicators for attachments */}
+                  {(ann.imageUrl || ann.youtubeUrl || ann.driveUrl) && (
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {ann.imageUrl && (
+                        <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
+                          Hình ảnh
+                        </span>
+                      )}
+                      {ann.youtubeUrl && (
+                        <span className="text-[9px] bg-red-100 text-red-800 font-bold px-1.5 py-0.5 rounded">
+                          Video
+                        </span>
+                      )}
+                      {ann.driveUrl && (
+                        <span className="text-[9px] bg-[#e6f4ea] text-[#137333] font-bold px-1.5 py-0.5 rounded">
+                          Tài liệu
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <span className="text-[10px] text-gray-400 block font-mono">
                     Ngày đăng: {new Date(ann.date).toLocaleDateString('vi-VN')}
                   </span>
@@ -275,6 +323,125 @@ export default function HomeSection({
                 className="w-full mt-6 bg-[#b8956b] hover:bg-[#8b7355] text-white py-2.5 font-bold rounded-md transition duration-200 cursor-pointer text-sm"
               >
                 Đóng thông tin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL XEM CHI TIẾT THÔNG BÁO */}
+      {selectedAnn && (
+        <div className="fixed inset-0 bg-black bg-opacity-65 z-[110] flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl border border-[#b8956b] overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="bg-[#3e2a16] text-[#fdfbf7] p-5 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-[#d6b583]" />
+                <h3 className="text-base md:text-lg font-bold uppercase font-playfair tracking-wide line-clamp-1">Chi Tiết Thông Báo</h3>
+              </div>
+              <button 
+                onClick={() => setSelectedAnn(null)}
+                className="text-gray-400 hover:text-white transition p-1 cursor-pointer"
+                aria-label="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="p-6 overflow-y-auto space-y-5 text-sm text-[#4a331a] leading-relaxed">
+              {/* Category & Date */}
+              <div className="flex items-center justify-between border-b border-dashed border-[#eadecb] pb-3 flex-wrap gap-2">
+                <span className={`inline-block px-3 py-1 text-xs font-bold rounded ${
+                  selectedAnn.category === 'QUAN TRỌNG' ? 'bg-red-100 text-red-700' :
+                  selectedAnn.category === 'CẬP NHẬT' ? 'bg-blue-100 text-blue-700' :
+                  selectedAnn.category === 'TIN BUỒN' ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-700'
+                }`}>
+                  Thể loại: {selectedAnn.category}
+                </span>
+                <span className="text-xs text-gray-500 font-mono">
+                  Đăng ngày: {new Date(selectedAnn.date).toLocaleDateString('vi-VN')}
+                </span>
+              </div>
+
+              {/* Title */}
+              <h2 className="text-xl md:text-2xl font-bold font-playfair text-[#6b4724]">
+                {selectedAnn.title}
+              </h2>
+
+              {/* Image if available */}
+              {selectedAnn.imageUrl && (
+                <div className="border border-[#eadecb] p-1 bg-[#faf8f2] rounded-lg shadow-xs">
+                  <img 
+                    src={selectedAnn.imageUrl} 
+                    alt={selectedAnn.title}
+                    referrerPolicy="no-referrer"
+                    className="w-full max-h-[300px] object-cover rounded-md"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Content text */}
+              <div className="text-justify space-y-3 whitespace-pre-line text-[#5c4021]">
+                {selectedAnn.content.split('\n\n').map((paragraph, pIdx) => (
+                  <p key={pIdx} className="indent-6">
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+
+              {/* Embedded YouTube Player if available */}
+              {selectedAnn.youtubeUrl && getYoutubeEmbedUrl(selectedAnn.youtubeUrl) && (
+                <div className="space-y-2 border-t border-dashed border-[#eadecb] pt-4">
+                  <span className="font-bold text-xs uppercase text-[#8b7355] tracking-wider block flex items-center gap-1">
+                    <Video className="w-4 h-4 text-red-600" /> Video truyền thông / hướng dẫn trên YouTube
+                  </span>
+                  <div className="relative pb-[56.25%] h-0 overflow-hidden rounded-lg border border-[#eadecb] bg-black shadow-inner">
+                    <iframe
+                      src={getYoutubeEmbedUrl(selectedAnn.youtubeUrl)}
+                      title="YouTube video player"
+                      className="absolute top-0 left-0 w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    ></iframe>
+                  </div>
+                </div>
+              )}
+
+              {/* Google Drive Link if available */}
+              {selectedAnn.driveUrl && (
+                <div className="bg-[#f0f9ff] border border-blue-200 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex gap-2.5">
+                    <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 flex-shrink-0">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-[#1e3a8a] text-xs uppercase tracking-wider">Tài liệu đính kèm</h4>
+                      <p className="text-xs text-blue-700 mt-0.5">Vui lòng bấm nút để mở tài liệu hoặc tệp lưu trữ trên Google Drive.</p>
+                    </div>
+                  </div>
+                  <a 
+                    href={selectedAnn.driveUrl} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="w-full md:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded transition shadow-xs cursor-pointer uppercase tracking-wider flex-shrink-0"
+                  >
+                    Xem tài liệu <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="bg-[#faf8f2] p-4 border-t border-[#eadecb] flex justify-end flex-shrink-0">
+              <button 
+                onClick={() => setSelectedAnn(null)}
+                className="px-5 py-2 bg-[#b8956b] hover:bg-[#8b7355] text-white font-bold rounded text-xs transition uppercase tracking-wider cursor-pointer"
+              >
+                Đóng thông báo
               </button>
             </div>
           </div>
