@@ -8,8 +8,9 @@ export interface Member {
   deathAnniversaryLunar?: string; // Ngày giỗ âm lịch (e.g. "12 tháng 3")
   isDeceased: boolean;
   spouseName?: string; // Tên bạn đời (vợ/chồng)
-  spouseType?: string; // Bầu đoàn nhà cụ/ông/bà/bác (phân loại bạn đời, ví dụ: Chính thất, Trắc thất, Vợ cả, Vợ hai, Chồng...)
-  parentId?: string; // ID của cha (hoặc mẹ) trong dòng họ
+  spouseType?: string; // Bên ngoại tộc (phân loại bạn đời, ví dụ: Chính thất, Trắc thất, Vợ cả, Vợ hai, Chồng...)
+  parentId?: string; // ID của cha trong dòng họ
+  motherId?: string; // ID của mẹ trong dòng họ
   relationshipToHead?: string; // Quan hệ với cụ tổ (e.g. Con, Cháu, Bác, Bố, Cô...)
   chiBranch?: string; // Chi/Ngành (e.g. "Chi Cả", "Chi Hai")
   birthPlace?: string; // Quê quán

@@ -308,6 +308,24 @@ export default function FamilyTreeSection({
                   </div>
                 )}
 
+                {selectedMember.parentId && (
+                  <div className="grid grid-cols-3 gap-1 py-1 border-b border-gray-50">
+                    <span className="text-gray-400">Cha (Cấp trên):</span>
+                    <span className="col-span-2 text-[#4a331a] font-semibold">
+                      {members.find(m => m.id === selectedMember.parentId)?.fullName || 'Chưa rõ'}
+                    </span>
+                  </div>
+                )}
+
+                {selectedMember.motherId && (
+                  <div className="grid grid-cols-3 gap-1 py-1 border-b border-gray-50">
+                    <span className="text-gray-400">Mẹ:</span>
+                    <span className="col-span-2 text-[#4a331a] font-semibold">
+                      {members.find(m => m.id === selectedMember.motherId)?.fullName || 'Chưa rõ'}
+                    </span>
+                  </div>
+                )}
+
                 {selectedMember.chiBranch && (
                   <div className="grid grid-cols-3 gap-1 py-1 border-b border-gray-50">
                     <span className="text-gray-400">Chi nhánh:</span>

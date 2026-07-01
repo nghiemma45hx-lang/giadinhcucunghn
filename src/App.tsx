@@ -120,25 +120,55 @@ export default function App() {
   }, [currentView]);
 
   // 3. Hàm xử lý CRUD Thành Viên kết nối Supabase
+  const [membersHistory, setMembersHistory] = useState<Member[][]>([]);
+
+  const setMembersWithHistory = (newMembers: Member[] | ((prev: Member[]) => Member[])) => {
+    setMembers(prev => {
+      const resolved = typeof newMembers === 'function' ? newMembers(prev) : newMembers;
+      if (JSON.stringify(prev) !== JSON.stringify(resolved)) {
+        setMembersHistory(h => [...h.slice(-19), prev]); // Lưu tối đa 20 trạng thái gần nhất
+      }
+      return resolved;
+    });
+  };
+
   const handleAddMember = async (newMem: Member) => {
-    setMembers(prev => [newMem, ...prev]);
+    setMembersWithHistory(prev => [newMem, ...prev]);
     if (!supabaseNeedsSetup) {
       await dbAddMember(newMem);
     }
   };
 
   const handleUpdateMember = async (updatedMem: Member) => {
-    setMembers(prev => prev.map(m => m.id === updatedMem.id ? updatedMem : m));
+    setMembersWithHistory(prev => prev.map(m => m.id === updatedMem.id ? updatedMem : m));
     if (!supabaseNeedsSetup) {
       await dbUpdateMember(updatedMem);
     }
   };
 
   const handleDeleteMember = async (id: string) => {
-    setMembers(prev => prev.filter(m => m.id !== id));
+    setMembersWithHistory(prev => prev.filter(m => m.id !== id));
     if (!supabaseNeedsSetup) {
       await dbDeleteMember(id);
     }
+  };
+
+  const handleClearAllMembers = async () => {
+    if (members.length === 0) return;
+    setMembersWithHistory([]);
+    if (!supabaseNeedsSetup) {
+      // Xóa tất cả các thành viên trên DB bằng cách lặp qua từng ID
+      for (const m of members) {
+        await dbDeleteMember(m.id);
+      }
+    }
+  };
+
+  const handleUndoMembers = () => {
+    if (membersHistory.length === 0) return;
+    const previous = membersHistory[membersHistory.length - 1];
+    setMembersHistory(prev => prev.slice(0, prev.length - 1));
+    setMembers(previous);
   };
 
   // 4. Hàm xử lý CRUD Thông Báo kết nối Supabase
@@ -310,6 +340,9 @@ export default function App() {
                 onDeleteAnnouncement={handleDeleteAnnouncement}
                 editingMemberId={editingMemberId}
                 setEditingMemberId={setEditingMemberId}
+                onClearAllMembers={handleClearAllMembers}
+                onUndoMembers={handleUndoMembers}
+                canUndoMembers={membersHistory.length > 0}
               />
             )}
           </motion.div>

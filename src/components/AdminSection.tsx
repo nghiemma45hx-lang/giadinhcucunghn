@@ -22,6 +22,9 @@ interface AdminSectionProps {
   onDeleteAnnouncement: (id: string) => void;
   editingMemberId: string | null;
   setEditingMemberId: (id: string | null) => void;
+  onClearAllMembers?: () => void;
+  onUndoMembers?: () => void;
+  canUndoMembers?: boolean;
 }
 
 export default function AdminSection({
@@ -35,7 +38,10 @@ export default function AdminSection({
   onUpdateAnnouncement,
   onDeleteAnnouncement,
   editingMemberId,
-  setEditingMemberId
+  setEditingMemberId,
+  onClearAllMembers,
+  onUndoMembers,
+  canUndoMembers = false
 }: AdminSectionProps) {
   // Tabs: members or announcements
   const [activeTab, setActiveTab] = useState<'members' | 'announcements' | 'accounts'>('members');
@@ -53,6 +59,7 @@ export default function AdminSection({
   const [spouseName, setSpouseName] = useState('');
   const [spouseType, setSpouseType] = useState('');
   const [parentId, setParentId] = useState('');
+  const [motherId, setMotherId] = useState('');
   const [relationshipToHead, setRelationshipToHead] = useState('');
   const [chiBranch, setChiBranch] = useState('Chi Cả');
   const [birthPlace, setBirthPlace] = useState('');
@@ -150,7 +157,7 @@ export default function AdminSection({
     const birthDateVal = getValueForLabel(['Năm sinh', 'Ngày sinh']) || undefined;
     const parentRaw = getValueForLabel(['Cấp Trên Trong Họ', 'Họ tên Cha']);
     const spouseNameVal = getValueForLabel(['Họ tên Bạn đời', 'Bạn đời', 'Vợ/Chồng']) || undefined;
-    const spouseTypeVal = getValueForLabel(['Bầu đoàn', 'Phân loại bạn đời']) || undefined;
+    const spouseTypeVal = getValueForLabel(['Bên ngoại tộc', 'Bầu đoàn', 'Phân loại bạn đời']) || undefined;
     const contactVal = getValueForLabel(['Số điện thoại']) || undefined;
     const jobVal = getValueForLabel(['Nghề nghiệp']) || undefined;
     const educationVal = getValueForLabel(['Trình độ học vấn', 'Học vấn']) || undefined;
@@ -239,7 +246,7 @@ export default function AdminSection({
     const birthDateVal = getValueForLabel(['Năm sinh', 'Ngày sinh']) || undefined;
     const parentRaw = getValueForLabel(['Cấp Trên Trong Họ', 'Họ tên Cha']);
     const spouseNameVal = getValueForLabel(['Họ tên Bạn đời', 'Bạn đời', 'Vợ/Chồng']) || undefined;
-    const spouseTypeVal = getValueForLabel(['Bầu đoàn', 'Phân loại bạn đời']) || undefined;
+    const spouseTypeVal = getValueForLabel(['Bên ngoại tộc', 'Bầu đoàn', 'Phân loại bạn đời']) || undefined;
     const contactVal = getValueForLabel(['Số điện thoại']) || undefined;
     const jobVal = getValueForLabel(['Nghề nghiệp']) || undefined;
     const educationVal = getValueForLabel(['Trình độ học vấn', 'Học vấn']) || undefined;
@@ -316,7 +323,7 @@ export default function AdminSection({
       const idxRel = getIndex(['vaivévớitổ', 'mốiquanhệ', 'relationship']);
       const idxBirth = getIndex(['nămsinh', 'ngàysinh', 'birth']);
       const idxSpouse = getIndex(['họtênbạnđời', 'bạnđời', 'phốingẫu', 'spouse']);
-      const idxSpouseType = getIndex(['bầuđoàn', 'phânloạibạnđời', 'spousetype']);
+      const idxSpouseType = getIndex(['bênngoạitộc', 'bầuđoàn', 'phânloạibạnđời', 'spousetype']);
       const idxContact = getIndex(['sốđiệnthoại', 'liênhệ', 'sđt', 'contact', 'phone']);
       const idxJob = getIndex(['nghềnghiệp', 'job']);
       const idxEducation = getIndex(['họcvấn', 'trìnhđộ', 'education']);
@@ -647,6 +654,7 @@ export default function AdminSection({
     setSpouseName(member.spouseName || '');
     setSpouseType(member.spouseType || '');
     setParentId(member.parentId || '');
+    setMotherId(member.motherId || '');
     setRelationshipToHead(member.relationshipToHead || '');
     setChiBranch(member.chiBranch || 'Chi Cả');
     setBirthPlace(member.birthPlace || '');
@@ -673,6 +681,7 @@ export default function AdminSection({
     setSpouseName('');
     setSpouseType('');
     setParentId('');
+    setMotherId('');
     setRelationshipToHead('');
     setChiBranch('Chi Cả');
     setBirthPlace('');
@@ -706,6 +715,7 @@ export default function AdminSection({
       spouseName: spouseName || undefined,
       spouseType: spouseName ? (spouseType || undefined) : undefined,
       parentId: parentId || undefined,
+      motherId: motherId || undefined,
       relationshipToHead: relationshipToHead || undefined,
       chiBranch: chiBranch || undefined,
       birthPlace: birthPlace || undefined,
@@ -859,8 +869,8 @@ export default function AdminSection({
             <td>....................................................................................................</td>
           </tr>
           <tr>
-            <td style="font-weight: bold;">Bầu đoàn (Phân loại bạn đời):</td>
-            <td>(ví dụ: Cụ bà Chính thất, Trắc thất, Vợ cả, Vợ hai...) ....................................</td>
+            <td style="font-weight: bold;">Bên ngoại tộc:</td>
+            <td>(ví dụ: Cụ bà Chính thất, Trắc thất, Vợ cả, Vợ hai, Bên ngoại cụ, Bên ngoại ông...) ....................................</td>
           </tr>
           <tr>
             <th colspan="2" style="background-color: #eadecb; text-align: center; font-size: 11pt; color: #4a3219;">THÔNG TIN THÊM (NẾU CÒN SỐNG)</th>
@@ -942,7 +952,7 @@ export default function AdminSection({
         'Vai Vế Với Tổ',
         'Năm Sinh (Dương lịch)',
         'Họ tên Bạn đời',
-        'Bầu đoàn (Phân loại bạn đời)',
+        'Bên ngoại tộc',
         'Số điện thoại',
         'Nghề nghiệp',
         'Học vấn',
@@ -1091,16 +1101,43 @@ export default function AdminSection({
           
           {/* Nút Thêm mới và Thanh thống kê */}
           {!showMemberForm && (
-            <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-[#eadecb]">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg border border-[#eadecb] gap-3">
               <span className="text-xs font-semibold text-[#8b7355]">
                 Đang có <strong className="text-[#6b4724] font-mono">{members.length}</strong> nhân khẩu trong dòng họ
               </span>
-              <button
-                onClick={() => { resetMemberForm(); setShowMemberForm(true); }}
-                className="bg-[#b8956b] hover:bg-[#8b7355] text-white py-2 px-4 rounded text-xs font-bold flex items-center gap-1 cursor-pointer focus:outline-none"
-              >
-                <Plus className="w-4 h-4" /> Thêm Thành Viên Mới
-              </button>
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                {onUndoMembers && canUndoMembers && (
+                  <button
+                    onClick={onUndoMembers}
+                    className="bg-amber-50 hover:bg-amber-100 text-amber-800 py-2 px-3.5 rounded text-xs border border-amber-300 font-bold flex items-center gap-1.5 cursor-pointer focus:outline-none transition shadow-xs"
+                    title="Hoàn tác thao tác vừa thực hiện (Thêm, Sửa, Xóa)"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-600 animate-spin-reverse" /> Hoàn Tác
+                  </button>
+                )}
+                
+                {onClearAllMembers && members.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa tất cả thành viên ra khỏi Gia Phả? Thao tác này sẽ xóa sạch danh sách thành viên hiện tại nhưng bạn có thể 'Hoàn Tác' ngay sau đó nếu cần.")) {
+                        onClearAllMembers();
+                        showToast("Đã xóa toàn bộ danh sách thành viên thành công!");
+                      }
+                    }}
+                    className="bg-red-50 hover:bg-red-100 text-red-700 py-2 px-3.5 rounded text-xs border border-red-200 font-bold flex items-center gap-1.5 cursor-pointer focus:outline-none transition shadow-xs"
+                    title="Xóa tất cả thành viên khỏi danh sách"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-500" /> Xóa Tất Cả
+                  </button>
+                )}
+
+                <button
+                  onClick={() => { resetMemberForm(); setShowMemberForm(true); }}
+                  className="bg-[#b8956b] hover:bg-[#8b7355] text-white py-2 px-4 rounded text-xs font-bold flex items-center gap-1 cursor-pointer focus:outline-none"
+                >
+                  <Plus className="w-4 h-4" /> Thêm Thành Viên Mới
+                </button>
+              </div>
             </div>
           )}
 
@@ -1251,6 +1288,29 @@ export default function AdminSection({
                         <option key={p.id} value={p.id}>{p.fullName} (Đời {p.generation})</option>
                       ))}
                     </select>
+
+                    {/* Ô Chọn Mẹ dưới Cấp Trên */}
+                    <div className="mt-2.5 p-2 bg-red-50/50 border border-red-200 rounded">
+                      <label className="block text-red-800 font-bold mb-1 text-[11px] uppercase tracking-wider flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                        Mẹ (Chọn Mẹ dưới cấp trên trong họ)
+                      </label>
+                      <select
+                        value={motherId}
+                        onChange={(e) => setMotherId(e.target.value)}
+                        className="w-full p-2 border border-red-200 rounded bg-white text-xs text-[#6b4724] font-medium focus:outline-none focus:ring-1 focus:ring-red-400"
+                      >
+                        <option value="">-- Không chọn Mẹ --</option>
+                        {members.filter(m => m.gender === 'Nữ').map(p => (
+                          <option key={p.id} value={p.id}>{p.fullName} (Đời {p.generation})</option>
+                        ))}
+                      </select>
+                      {parentId && members.find(m => m.id === parentId)?.spouseName && (
+                        <div className="text-[9px] text-amber-800/80 mt-1.5 italic font-medium">
+                          Bạn đời đăng ký của Cha: <strong className="text-red-700">{members.find(m => m.id === parentId)?.spouseName}</strong>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -1313,18 +1373,18 @@ export default function AdminSection({
                       className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
                     />
                     
-                    {/* RED BOX: Bầu đoàn */}
+                    {/* RED BOX: Bên ngoại tộc */}
                     <div className="mt-2 p-3 bg-red-50 border-2 border-red-500 rounded-md shadow-xs">
                       <label className="block text-red-800 font-bold mb-1.5 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
                         <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
-                        Bầu đoàn (Phân loại Bạn đời)
+                        Bên ngoại tộc
                       </label>
                       <input
                         type="text"
                         value={spouseType}
                         onChange={(e) => setSpouseType(e.target.value)}
                         list="spouse-types-list"
-                        placeholder="Nhập thủ công hoặc chọn bầu đoàn bên dưới..."
+                        placeholder="Nhập thủ công hoặc chọn Bên ngoại tộc..."
                         className="w-full p-2 border border-red-300 rounded bg-white text-xs text-[#6b4724] font-bold focus:outline-none focus:ring-1 focus:ring-red-500"
                       />
                       <datalist id="spouse-types-list">
@@ -1333,13 +1393,17 @@ export default function AdminSection({
                         <option value="Cụ bà Thứ thất">Cụ bà Thứ thất (Bà ba)</option>
                         <option value="Vợ cả">Vợ cả</option>
                         <option value="Vợ hai">Vợ hai</option>
+                        <option value="Bên ngoại cụ">Bên ngoại cụ</option>
+                        <option value="Bên ngoại ông">Bên ngoại ông</option>
+                        <option value="Bên ngoại bà">Bên ngoại bà</option>
+                        <option value="Bên ngoại bác">Bên ngoại bác</option>
+                        <option value="Bên ngoại anh">Bên ngoại anh</option>
                         <option value="Chồng">Chồng</option>
-                        <option value="Chồng chính thất">Chồng chính thất (Cụ ông cả)</option>
                       </datalist>
                       
                       {/* Gợi ý bấm nhanh */}
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {['Cụ bà Chính thất', 'Cụ bà Trắc thất', 'Vợ cả', 'Vợ hai', 'Chồng'].map((suggested) => (
+                        {['Cụ bà Chính thất', 'Cụ bà Trắc thất', 'Vợ cả', 'Vợ hai', 'Bên ngoại cụ', 'Bên ngoại ông', 'Bên ngoại bà', 'Bên ngoại bác', 'Bên ngoại anh', 'Chồng'].map((suggested) => (
                           <button
                             key={suggested}
                             type="button"
