@@ -184,7 +184,9 @@ export default function MemberListSection({
                   {member.spouseName && (
                     <div className="flex items-center gap-1 text-gray-500">
                       <span className="font-semibold text-gray-400 w-[70px]">Bạn đời:</span>
-                      <span className="truncate">{member.spouseName}</span>
+                      <span className="truncate">
+                        {member.spouseName} {member.spouseType ? `(${member.spouseType})` : ''}
+                      </span>
                     </div>
                   )}
                   {member.chiBranch && (
@@ -306,7 +308,9 @@ export default function MemberListSection({
                 {selectedMember.spouseName && (
                   <div className="grid grid-cols-3 gap-1 py-1 border-b border-gray-50">
                     <span className="text-gray-400">Bạn đời:</span>
-                    <span className="col-span-2 text-[#4a331a] font-semibold">{selectedMember.spouseName}</span>
+                    <span className="col-span-2 text-[#4a331a] font-semibold">
+                      {selectedMember.spouseName} {selectedMember.spouseType ? `(${selectedMember.spouseType})` : ''}
+                    </span>
                   </div>
                 )}
 

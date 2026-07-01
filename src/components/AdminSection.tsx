@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Member, Announcement, UserAccount } from '../types';
 import { 
   Users, Megaphone, Plus, Edit2, Trash2, Save, X, 
-  UserPlus, CheckCircle, AlertCircle, RefreshCw, KeyRound 
+  UserPlus, CheckCircle, AlertCircle, RefreshCw, KeyRound,
+  FileText, FileSpreadsheet
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { parseAndCalculateAges } from '../utils/lunarConverter';
 
 interface AdminSectionProps {
   members: Member[];
@@ -47,6 +49,7 @@ export default function AdminSection({
   const [deathDate, setDeathDate] = useState('');
   const [deathAnniversaryLunar, setDeathAnniversaryLunar] = useState('');
   const [spouseName, setSpouseName] = useState('');
+  const [spouseType, setSpouseType] = useState('');
   const [parentId, setParentId] = useState('');
   const [relationshipToHead, setRelationshipToHead] = useState('');
   const [chiBranch, setChiBranch] = useState('Chi Cả');
@@ -86,6 +89,7 @@ export default function AdminSection({
     setDeathDate(member.deathDate || '');
     setDeathAnniversaryLunar(member.deathAnniversaryLunar || '');
     setSpouseName(member.spouseName || '');
+    setSpouseType(member.spouseType || '');
     setParentId(member.parentId || '');
     setRelationshipToHead(member.relationshipToHead || '');
     setChiBranch(member.chiBranch || 'Chi Cả');
@@ -111,6 +115,7 @@ export default function AdminSection({
     setDeathDate('');
     setDeathAnniversaryLunar('');
     setSpouseName('');
+    setSpouseType('');
     setParentId('');
     setRelationshipToHead('');
     setChiBranch('Chi Cả');
@@ -143,6 +148,7 @@ export default function AdminSection({
       deathDate: isDeceased ? (deathDate || undefined) : undefined,
       deathAnniversaryLunar: isDeceased ? (deathAnniversaryLunar || undefined) : undefined,
       spouseName: spouseName || undefined,
+      spouseType: spouseName ? (spouseType || undefined) : undefined,
       parentId: parentId || undefined,
       relationshipToHead: relationshipToHead || undefined,
       chiBranch: chiBranch || undefined,
@@ -232,6 +238,238 @@ export default function AdminSection({
     }
   }
 
+  // Tải biểu mẫu Word (.docx)
+  const downloadWordTemplate = () => {
+    const htmlContent = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <title>Bieu mau dang ky thanh vien gia pha</title>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Times New Roman', Times, serif; line-height: 1.6; padding: 20px; }
+          h1 { text-align: center; color: #6b4724; font-size: 20pt; text-transform: uppercase; margin-bottom: 5px; }
+          h2 { text-align: center; font-size: 14pt; font-style: italic; font-weight: normal; margin-top: 0; margin-bottom: 30px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #333333; padding: 8px; text-align: left; font-size: 11pt; }
+          th { background-color: #f2f2f2; font-weight: bold; }
+          .section-title { font-weight: bold; font-size: 12pt; text-transform: uppercase; margin-top: 20px; color: #3e2a16; }
+          .note { font-style: italic; font-size: 10pt; color: #555; margin-top: 15px; }
+        </style>
+      </head>
+      <body>
+        <h1>PHIẾU ĐĂNG KÝ THÀNH VIÊN GIA PHẢ</h1>
+        <h2 style="text-align: center;">GIA TỘC NGHIÊM GIA - GIA PHẢ SỐ HÓA</h2>
+        
+        <p>Kính gửi Hội đồng gia tộc Nghiêm Gia, dưới đây là thông tin thành viên đề xuất bổ sung vào hệ thống phả hệ:</p>
+        
+        <table>
+          <tr>
+            <th colspan="2" style="background-color: #eadecb; text-align: center; font-size: 12pt; color: #4a3219;">THÔNG TIN THÀNH VIÊN CHÍNH</th>
+          </tr>
+          <tr>
+            <td style="width: 35%; font-weight: bold;">Họ và tên thành viên (*):</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Thế hệ (Đời thứ mấy) (*):</td>
+            <td>Đời thứ: ......... (ví dụ: Đời thứ 18, 19, 20...)</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Giới tính (*):</td>
+            <td>[  ] Nam   /   [  ] Nữ</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Tình trạng (*):</td>
+            <td>[  ] Còn sống  /  [  ] Đã mất (Kính Tế)</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Cấp Trên Trong Họ (Cha/Mẹ) (*):</td>
+            <td>Họ tên Cha: ....................................................................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Chi / Ngành trực thuộc:</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Mối quan hệ với Tổ:</td>
+            <td>(ví dụ: Con trai cả, Cháu nội đích tôn, Con gái...) ....................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Năm sinh (Dương lịch) (*):</td>
+            <td>........................ (Tính toán Ngày âm lịch: .......................................)</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Họ tên Bạn đời (Vợ/Chồng):</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Bầu đoàn (Phân loại bạn đời):</td>
+            <td>(ví dụ: Cụ bà Chính thất, Trắc thất, Vợ cả, Vợ hai...) ....................................</td>
+          </tr>
+          <tr>
+            <th colspan="2" style="background-color: #eadecb; text-align: center; font-size: 11pt; color: #4a3219;">THÔNG TIN THÊM (NẾU CÒN SỐNG)</th>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Số điện thoại liên hệ:</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Nghề nghiệp hiện tại:</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Trình độ học vấn:</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <th colspan="2" style="background-color: #eadecb; text-align: center; font-size: 11pt; color: #4a3219;">THÔNG TIN THÊM (NẾU ĐÃ KHUẤT)</th>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Năm mất (Dương lịch):</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Ngày giỗ âm lịch (*):</td>
+            <td>Ngày: ...... Tháng: ...... (ví dụ: ngày 12 tháng 3 âm lịch)</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Nơi an táng (Mộ phần):</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <th colspan="2" style="background-color: #eadecb; text-align: center; font-size: 11pt; color: #4a3219;">QUÊ QUÁN & TIỂU SỬ</th>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Nơi sinh / Quê quán:</td>
+            <td>....................................................................................................</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Tiểu sử cuộc đời:</td>
+            <td style="height: 120px; vertical-align: top;">....................................................................................................<br><br>....................................................................................................</td>
+          </tr>
+        </table>
+        
+        <p class="note">(*) Các trường bắt buộc phải điền đầy đủ để Hội đồng gia tộc cập nhật phả hệ điện tử chính xác nhất.</p>
+        
+        <div style="margin-top: 40px; float: right; width: 250px; text-align: center;">
+          <p>......, Ngày ...... Tháng ...... Năm 20...</p>
+          <p style="font-weight: bold; margin-top: 5px;">Thành viên kê khai</p>
+          <p style="font-style: italic; margin-top: 50px;">(Ký và ghi rõ họ tên)</p>
+        </div>
+      </body>
+      </html>
+    `;
+    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Phieu_Dang_Ky_Thanh_Vien_Nghiem_Gia.doc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Tải biểu mẫu Excel (.csv với UTF-8 BOM hỗ trợ tiếng Việt hoàn hảo)
+  const downloadExcelTemplate = () => {
+    const excelData = [
+      ['DANH SÁCH ĐĂNG KÝ THÀNH VIÊN GIA PHẢ - NGHIÊM GIA'],
+      ['Hướng dẫn: Hãy điền thông tin của các thành viên dòng họ vào bảng dưới đây theo mẫu để Hội đồng gia tộc cập nhật.'],
+      [''],
+      [
+        'Họ và Tên (*)',
+        'Thế Hệ (*)',
+        'Giới Tính (*)',
+        'Tình Trạng (*)',
+        'Họ tên Cha (*)',
+        'Chi/Ngành',
+        'Vai Vế Với Tổ',
+        'Năm Sinh (Dương lịch)',
+        'Họ tên Bạn đời',
+        'Bầu đoàn (Phân loại bạn đời)',
+        'Số điện thoại',
+        'Nghề nghiệp',
+        'Học vấn',
+        'Năm Mất (Dương lịch)',
+        'Ngày Giỗ Âm Lịch',
+        'Nơi An Táng',
+        'Nơi Sinh / Quê Quán',
+        'Tiểu Sử Cuộc Đời'
+      ],
+      [
+        'Nghiêm Xuân Sơn',
+        '18',
+        'Nam',
+        'Còn sống',
+        'Nghiêm Văn Cung',
+        'Chi Cả',
+        'Anh cả',
+        '15-08-1985',
+        'Nguyễn Thị Mai',
+        'Bà cả',
+        '0912345678',
+        'Bác sĩ',
+        'Thạc sĩ Y khoa',
+        '',
+        '',
+        '',
+        'Hòa Xá, Ứng Hòa, Hà Nội',
+        'Đóng góp tích cực cho quỹ khuyến học dòng họ.'
+      ],
+      [
+        'Nghiêm Thị Lan',
+        '18',
+        'Nữ',
+        'Còn sống',
+        'Nghiêm Văn Cung',
+        'Chi Cả',
+        'Con gái',
+        '1988',
+        'Trần Văn Hùng',
+        'Chồng',
+        '0987654321',
+        'Giáo viên',
+        'Cử nhân sư phạm',
+        '',
+        '',
+        '',
+        'Hòa Xá, Ứng Hòa, Hà Nội',
+        ''
+      ],
+      [
+        'Nghiêm Văn A',
+        '17',
+        'Nam',
+        'Đã mất',
+        'Nghiêm Cụ Tổ',
+        'Chi Cả',
+        'Cụ đời thứ 17',
+        '1920',
+        'Đặng Thị B',
+        'Cụ bà Chính thất',
+        '',
+        '',
+        '',
+        '1995',
+        '12 tháng 3',
+        'Nghĩa trang Đồng Vông',
+        'Hòa Xá, Ứng Hòa, Hà Nội',
+        'Hương khói phụng thờ chu đáo.'
+      ]
+    ];
+
+    const csvContent = excelData.map(e => e.map(val => `"${(val || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Mau_Dang_Ky_Thanh_Vien_Nghiem_Gia.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div id="admin-view" className="w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       
@@ -313,17 +551,38 @@ export default function AdminSection({
           {/* Form Thêm/Sửa Thành Viên */}
           {showMemberForm && (
             <div className="bg-[#faf8f2] rounded-lg border-2 border-[#b8956b] p-6 animate-in fade-in zoom-in-95 duration-200">
-              <div className="flex justify-between items-center border-b border-[#eadecb] pb-3 mb-5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#eadecb] pb-3 mb-5 gap-3">
                 <h3 className="text-lg font-bold text-[#6b4724] font-playfair flex items-center gap-1.5">
                   <Users className="w-5 h-5 text-[#b8956b]" />
                   {editingMemberId ? 'Cập Nhật Hồ Sơ Thành Viên' : 'Thêm Thành Viên Mới Vào Gia Phả'}
                 </h3>
-                <button 
-                  onClick={resetMemberForm}
-                  className="text-gray-400 hover:text-[#6b4724] p-1.5 focus:outline-none cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  {/* Word Template download */}
+                  <button
+                    type="button"
+                    onClick={downloadWordTemplate}
+                    title="Tải biểu mẫu Word (.docx)"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition text-[10px] font-bold focus:outline-none cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Biểu mẫu Word (.docx)
+                  </button>
+                  {/* Excel Template download */}
+                  <button
+                    type="button"
+                    onClick={downloadExcelTemplate}
+                    title="Tải biểu mẫu Excel (.csv)"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition text-[10px] font-bold focus:outline-none cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" /> Biểu mẫu Excel (.csv)
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={resetMemberForm}
+                    className="text-gray-400 hover:text-[#6b4724] p-1.5 focus:outline-none cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               <form onSubmit={handleMemberSubmit} className="space-y-4 text-xs">
@@ -444,6 +703,32 @@ export default function AdminSection({
                       placeholder="ví dụ: 1985 hoặc 15-08-1985"
                       className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
                     />
+                    
+                    {/* RED BOX: Tra cứu Âm lịch & Tuổi */}
+                    <div className="mt-2 p-3 bg-red-50 border-2 border-red-500 rounded-md text-xs space-y-1.5 shadow-xs">
+                      <div className="text-red-800 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-red-600 rounded-full animate-ping"></span>
+                        Đặc trưng Âm Lịch & Tuổi Gia Tộc
+                      </div>
+                      {birthDate ? (
+                        <div className="space-y-1 font-sans">
+                          <div>
+                            <span className="text-gray-500 font-medium">Âm lịch quy đổi:</span>{' '}
+                            <strong className="text-red-900 font-bold bg-red-100/60 px-1.5 py-0.5 rounded text-[11px] block sm:inline-block mt-0.5 sm:mt-0">
+                              {parseAndCalculateAges(birthDate, isDeceased, deathDate, gender).lunarDateText || 'Đang phân tích...'}
+                            </strong>
+                          </div>
+                          <div className="pt-0.5">
+                            <span className="text-gray-500 font-medium">Chi tiết thọ mệnh:</span>{' '}
+                            <strong className="text-red-900 font-bold block sm:inline-block mt-0.5 sm:mt-0">
+                              {parseAndCalculateAges(birthDate, isDeceased, deathDate, gender).ageText}
+                            </strong>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-red-700/60 italic text-[11px]">Vui lòng nhập năm sinh ở trên để tự động suy luận...</div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-gray-700 font-bold mb-1">Họ Tên Bạn Đời (Vợ / Chồng)</label>
@@ -451,9 +736,32 @@ export default function AdminSection({
                       type="text" 
                       value={spouseName}
                       onChange={(e) => setSpouseName(e.target.value)}
-                      placeholder="Nhập tên phối ngẫu phối ngẫu"
+                      placeholder="Nhập tên phối ngẫu"
                       className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
                     />
+                    
+                    {/* RED BOX: Bầu đoàn */}
+                    <div className="mt-2 p-3 bg-red-50 border-2 border-red-500 rounded-md shadow-xs">
+                      <label className="block text-red-800 font-bold mb-1.5 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+                        Bầu đoàn (Phân loại Bạn đời)
+                      </label>
+                      <select
+                        value={spouseType}
+                        onChange={(e) => setSpouseType(e.target.value)}
+                        className="w-full p-2 border border-red-300 rounded bg-white text-xs text-[#6b4724] font-bold focus:outline-none focus:ring-1 focus:ring-red-500 cursor-pointer"
+                      >
+                        <option value="">-- Chưa phân loại / Bạn đời --</option>
+                        <option value="Cụ bà Chính thất">Cụ bà Chính thất (Bà cả)</option>
+                        <option value="Cụ bà Trắc thất">Cụ bà Trắc thất (Bà hai)</option>
+                        <option value="Cụ bà Thứ thất">Cụ bà Thứ thất (Bà ba)</option>
+                        <option value="Vợ cả">Vợ cả</option>
+                        <option value="Vợ hai">Vợ hai</option>
+                        <option value="Chồng">Chồng</option>
+                        <option value="Chồng chính thất">Chồng chính thất (Cụ ông cả)</option>
+                        <option value="Khác">Phân loại khác (Ghi trong tiểu sử)</option>
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-gray-700 font-bold mb-1">Mối Quan Hệ Với Tổ (Xác định vai vế)</label>

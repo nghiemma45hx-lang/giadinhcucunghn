@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS members (
   "deathAnniversaryLunar" TEXT,
   "isDeceased" BOOLEAN NOT NULL DEFAULT false,
   "spouseName" TEXT,
+  "spouseType" TEXT,
   "parentId" TEXT,
   "relationshipToHead" TEXT,
   "chiBranch" TEXT,

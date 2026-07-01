@@ -302,7 +302,9 @@ export default function FamilyTreeSection({
                 {selectedMember.spouseName && (
                   <div className="grid grid-cols-3 gap-1 py-1 border-b border-gray-50">
                     <span className="text-gray-400">Bạn đời:</span>
-                    <span className="col-span-2 text-[#4a331a] font-semibold">{selectedMember.spouseName}</span>
+                    <span className="col-span-2 text-[#4a331a] font-semibold">
+                      {selectedMember.spouseName} {selectedMember.spouseType ? `(${selectedMember.spouseType})` : ''}
+                    </span>
                   </div>
                 )}
 
