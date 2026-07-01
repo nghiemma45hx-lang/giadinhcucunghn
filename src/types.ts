@@ -1,3 +1,9 @@
+export interface SpouseInfo {
+  id: string; // ID duy nhất để quản lý
+  name: string; // Họ tên bạn đời
+  type?: string; // Bên ngoại tộc (phân loại bạn đời: Chính thất, Trắc thất, Vợ cả, Vợ hai, Chồng...)
+}
+
 export interface Member {
   id: string;
   fullName: string;
@@ -7,8 +13,8 @@ export interface Member {
   deathDate?: string; // Ngày mất
   deathAnniversaryLunar?: string; // Ngày giỗ âm lịch (e.g. "12 tháng 3")
   isDeceased: boolean;
-  spouseName?: string; // Tên bạn đời (vợ/chồng)
-  spouseType?: string; // Bên ngoại tộc (phân loại bạn đời, ví dụ: Chính thất, Trắc thất, Vợ cả, Vợ hai, Chồng...)
+  spouseName?: string; // Tên bạn đời (vợ/chồng) - Giữ nguyên tương thích ngược
+  spouseType?: string; // Bên ngoại tộc - Giữ nguyên tương thích ngược
   parentId?: string; // ID của cha trong dòng họ
   motherId?: string; // ID của mẹ trong dòng họ
   relationshipToHead?: string; // Quan hệ với cụ tổ (e.g. Con, Cháu, Bác, Bố, Cô...)
@@ -19,6 +25,7 @@ export interface Member {
   story?: string; // Tiểu sử, ghi chú đóng góp
   education?: string; // Học vấn
   job?: string; // Nghề nghiệp
+  spouses?: SpouseInfo[]; // Danh sách nhiều bạn đời
 }
 
 export interface Announcement {

@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS members (
   "spouseName" TEXT,
   "spouseType" TEXT,
   "parentId" TEXT,
+  "motherId" TEXT,
   "relationshipToHead" TEXT,
   "chiBranch" TEXT,
   "birthPlace" TEXT,
@@ -31,8 +32,13 @@ CREATE TABLE IF NOT EXISTS members (
   story TEXT,
   education TEXT,
   job TEXT,
+  spouses TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Tự động thêm cột nếu bảng members đã tồn tại trước đó
+ALTER TABLE members ADD COLUMN IF NOT EXISTS "motherId" TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS spouses TEXT;
 
 -- 2. Tạo bảng announcements (Thông báo gia tộc)
 CREATE TABLE IF NOT EXISTS announcements (
@@ -121,13 +127,53 @@ export async function dbGetMembers(): Promise<{ data: Member[]; needsSetup: bool
     // Nếu bảng tồn tại nhưng rỗng, thực hiện seed dữ liệu ban đầu
     if (!data || data.length === 0) {
       console.log('Bảng members trống, tự động seed dữ liệu ban đầu...');
-      const { error: seedError } = await supabase.from('members').insert(INITIAL_MEMBERS);
+      const seedData = INITIAL_MEMBERS.map(member => {
+        const dbMember = { ...member };
+        if (member.spouses) {
+          (dbMember as any).spouses = JSON.stringify(member.spouses);
+        } else if (member.spouseName) {
+          const spousesArr = [{ id: 'default-' + member.id, name: member.spouseName, type: member.spouseType || '' }];
+          (dbMember as any).spouses = JSON.stringify(spousesArr);
+        }
+        return dbMember;
+      });
+      const { error: seedError } = await supabase.from('members').insert(seedData);
       if (!seedError) {
         return { data: INITIAL_MEMBERS, needsSetup: false };
       }
     }
 
-    return { data: data || [], needsSetup: false };
+    const normalizedData = (data || []).map((item: any) => {
+      let spousesArr = [];
+      if (item.spouses) {
+        if (typeof item.spouses === 'string') {
+          try {
+            spousesArr = JSON.parse(item.spouses);
+          } catch (e) {
+            console.error('Lỗi parse spouses:', e);
+          }
+        } else if (Array.isArray(item.spouses)) {
+          spousesArr = item.spouses;
+        }
+      } else if (item.spouseName) {
+        // Cố gắng tách nếu có dấu & hoặc và
+        if (item.spouseName.includes('&')) {
+          spousesArr = item.spouseName.split('&').map((s: string, idx: number) => ({
+            id: `default-${item.id}-${idx}`,
+            name: s.trim(),
+            type: idx === 0 ? 'Vợ cả' : 'Vợ hai'
+          }));
+        } else {
+          spousesArr = [{ id: 'default-' + item.id, name: item.spouseName, type: item.spouseType || '' }];
+        }
+      }
+      return {
+        ...item,
+        spouses: spousesArr
+      } as Member;
+    });
+
+    return { data: normalizedData, needsSetup: false };
   } catch (err: any) {
     console.error('Lỗi khi lấy danh sách thành viên từ Supabase:', err);
     return { data: [], needsSetup: false, error: err.message };
@@ -136,7 +182,15 @@ export async function dbGetMembers(): Promise<{ data: Member[]; needsSetup: bool
 
 export async function dbAddMember(member: Member): Promise<boolean> {
   try {
-    const { error } = await supabase.from('members').insert(member);
+    const dbMember = { ...member };
+    if (member.spouses && member.spouses.length > 0) {
+      dbMember.spouseName = member.spouses.map(s => s.name).join(' & ');
+      dbMember.spouseType = member.spouses[0].type || '';
+      (dbMember as any).spouses = JSON.stringify(member.spouses);
+    } else {
+      (dbMember as any).spouses = null;
+    }
+    const { error } = await supabase.from('members').insert(dbMember);
     if (error) throw error;
     return true;
   } catch (err) {
@@ -147,9 +201,17 @@ export async function dbAddMember(member: Member): Promise<boolean> {
 
 export async function dbUpdateMember(member: Member): Promise<boolean> {
   try {
+    const dbMember = { ...member };
+    if (member.spouses && member.spouses.length > 0) {
+      dbMember.spouseName = member.spouses.map(s => s.name).join(' & ');
+      dbMember.spouseType = member.spouses[0].type || '';
+      (dbMember as any).spouses = JSON.stringify(member.spouses);
+    } else {
+      (dbMember as any).spouses = null;
+    }
     const { error } = await supabase
       .from('members')
-      .update(member)
+      .update(dbMember)
       .eq('id', member.id);
     if (error) throw error;
     return true;

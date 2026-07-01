@@ -34,12 +34,36 @@ export default function FamilyTreeSection({
     const children = members.filter(m => m.parentId === parentId);
     if (children.length === 0) return null;
 
+    // Sắp xếp con cháu đúng thứ tự các đời theo logic phả hệ:
+    // 1. Theo năm sinh (ai sinh trước đứng trước bên trái)
+    // 2. Theo vai vế (Trưởng, cả đứng trước Thứ)
+    // 3. Theo thứ tự ABC nếu không có dữ liệu năm sinh
+    const sortedChildren = [...children].sort((a, b) => {
+      const getBirthYear = (m: Member) => {
+        if (!m.birthDate) return 9999;
+        const matched = m.birthDate.match(/\d{4}/);
+        return matched ? parseInt(matched[0], 10) : 9999;
+      };
+
+      const yearA = getBirthYear(a);
+      const yearB = getBirthYear(b);
+
+      if (yearA !== yearB) {
+        return yearA - yearB;
+      }
+
+      const isA_Truong = a.relationshipToHead?.toLowerCase().includes('trưởng') || a.relationshipToHead?.toLowerCase().includes('cả');
+      const isB_Truong = b.relationshipToHead?.toLowerCase().includes('trưởng') || b.relationshipToHead?.toLowerCase().includes('cả');
+
+      if (isA_Truong && !isB_Truong) return -1;
+      if (!isA_Truong && isB_Truong) return 1;
+
+      return a.fullName.localeCompare(b.fullName, 'vi');
+    });
+
     return (
       <ul className="flex justify-center pt-6 relative">
-        {children.map(child => {
-          // Lấy bạn đời nếu có
-          const spouseText = child.spouseName ? `(vợ/chồng: ${child.spouseName})` : '';
-          
+        {sortedChildren.map(child => {
           let nodeColorClass = 'node-blue';
           if (child.gender === 'Nữ') {
             nodeColorClass = 'node-red';
@@ -50,6 +74,8 @@ export default function FamilyTreeSection({
           if (child.fullName.includes('Cụ Bà Cả') || child.fullName.includes('Cụ Bà Hai')) {
             nodeColorClass = 'node-purple';
           }
+
+          const hasSpouses = (child.spouses && child.spouses.length > 0) || child.spouseName;
 
           return (
             <li key={child.id} className="float-left text-center relative px-2 pt-6">
@@ -71,9 +97,10 @@ export default function FamilyTreeSection({
                 )}
                 
                 {/* Spouse indicator icon */}
-                {child.spouseName && (
-                  <div className="absolute -top-1.5 -right-1.5 bg-[#e53e3e] text-white p-0.5 rounded-full shadow-xs">
+                {hasSpouses && (
+                  <div className="absolute -top-1.5 -right-1.5 bg-[#e53e3e] text-white px-1 py-0.5 rounded-full shadow-xs flex items-center gap-0.5 text-[8px] font-bold">
                     <Heart className="w-2.5 h-2.5 fill-white text-white" />
+                    {child.spouses && child.spouses.length > 1 ? child.spouses.length : ''}
                   </div>
                 )}
               </div>
@@ -192,38 +219,72 @@ export default function FamilyTreeSection({
                       )}
                     </div>
                     
-                    <span className="text-gray-400 font-bold font-sans">&amp;</span>
-
-                    {/* Node Cụ Tổ Bà */}
-                    {root.spouseName && (
-                      <div 
-                        onClick={() => {
-                          // Xem chi tiết cụ bà
-                          const spouseMember = members.find(m => m.fullName.includes(root.spouseName || 'Lê Thị Mai'));
-                          if (spouseMember) setSelectedMember(spouseMember);
-                          else setSelectedMember({
-                            id: 'le-thi-mai-mock',
-                            fullName: root.spouseName || 'Lê Thị Mai',
-                            generation: root.generation,
-                            gender: 'Nữ',
-                            isDeceased: true,
-                            relationshipToHead: 'Cụ Tổ Bà',
-                            story: 'Vợ hiền dâu thảo nhà họ Nghiêm. Một đời tần tảo vun đắp gia tộc ấm no hạnh phúc.'
-                          });
-                        }}
-                        className="node-box node-purple transition duration-300 hover:scale-105 hover:shadow-lg cursor-pointer inline-flex flex-col items-center justify-center p-3 rounded-lg border-2 bg-white min-w-[130px] min-h-[65px] relative z-10"
-                      >
-                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-purple-700 mb-0.5">
-                          ĐỜI {root.generation} • Cụ Tổ Bà
-                        </span>
-                        <span className="text-xs font-bold uppercase text-[#4a331a]">
-                          {root.spouseName}
-                        </span>
-                        <span className="text-[10px] text-gray-500 font-mono mt-0.5">
-                          (1889 - 1971)
-                        </span>
+                    {/* Render tất cả các bạn đời của cụ tổ */}
+                    {root.spouses && root.spouses.length > 0 ? (
+                      root.spouses.map((spouse, sIdx) => {
+                        const spouseMember = members.find(m => m.fullName.toLowerCase() === spouse.name.toLowerCase());
+                        return (
+                          <div key={spouse.id || sIdx} className="flex items-center gap-2">
+                            <span className="text-gray-400 font-bold font-sans">&amp;</span>
+                            <div 
+                              onClick={() => {
+                                if (spouseMember) setSelectedMember(spouseMember);
+                                else setSelectedMember({
+                                  id: `spouse-mock-${spouse.id || sIdx}`,
+                                  fullName: spouse.name,
+                                  generation: root.generation,
+                                  gender: 'Nữ',
+                                  isDeceased: true,
+                                  relationshipToHead: spouse.type || 'Cụ Tổ Bà',
+                                  story: 'Vợ hiền dâu thảo. Một đời tần tảo vun đắp gia tộc ấm no hạnh phúc.'
+                                });
+                              }}
+                              className="node-box node-purple transition duration-300 hover:scale-105 hover:shadow-lg cursor-pointer inline-flex flex-col items-center justify-center p-3 rounded-lg border-2 bg-white min-w-[130px] min-h-[65px] relative z-10"
+                            >
+                              <span className="text-[9px] font-extrabold uppercase tracking-wider text-purple-700 mb-0.5">
+                                ĐỜI {root.generation} • {spouse.type || 'Cụ Tổ Bà'}
+                              </span>
+                              <span className="text-xs font-bold uppercase text-[#4a331a] truncate max-w-[120px]">
+                                {spouse.name}
+                              </span>
+                              <span className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                {spouseMember?.birthDate ? `(${spouseMember.birthDate})` : '(đã mất)'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : root.spouseName ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400 font-bold font-sans">&amp;</span>
+                        <div 
+                          onClick={() => {
+                            const spouseMember = members.find(m => m.fullName.includes(root.spouseName || 'Lê Thị Mai'));
+                            if (spouseMember) setSelectedMember(spouseMember);
+                            else setSelectedMember({
+                              id: 'le-thi-mai-mock',
+                              fullName: root.spouseName || 'Lê Thị Mai',
+                              generation: root.generation,
+                              gender: 'Nữ',
+                              isDeceased: true,
+                              relationshipToHead: 'Cụ Tổ Bà',
+                              story: 'Vợ hiền dâu thảo nhà họ Nghiêm. Một đời tần tảo vun đắp gia tộc ấm no hạnh phúc.'
+                            });
+                          }}
+                          className="node-box node-purple transition duration-300 hover:scale-105 hover:shadow-lg cursor-pointer inline-flex flex-col items-center justify-center p-3 rounded-lg border-2 bg-white min-w-[130px] min-h-[65px] relative z-10"
+                        >
+                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-purple-700 mb-0.5">
+                            ĐỜI {root.generation} • Cụ Tổ Bà
+                          </span>
+                          <span className="text-xs font-bold uppercase text-[#4a331a]">
+                            {root.spouseName}
+                          </span>
+                          <span className="text-[10px] text-gray-500 font-mono mt-0.5">
+                            (1889 - 1971)
+                          </span>
+                        </div>
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Render con cháu trực thuộc */}
@@ -299,14 +360,29 @@ export default function FamilyTreeSection({
                   </div>
                 )}
 
-                {selectedMember.spouseName && (
+                {selectedMember.spouses && selectedMember.spouses.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-1 py-1 border-b border-gray-50">
+                    <span className="text-gray-400">Bạn đời ({selectedMember.spouses.length}):</span>
+                    <div className="col-span-2 space-y-1">
+                      {selectedMember.spouses.map((spouse, sIdx) => (
+                        <div key={spouse.id || sIdx} className="text-[#4a331a] font-semibold flex items-center gap-1.5 flex-wrap">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                          <span>{spouse.name}</span>
+                          <span className="text-[9px] text-red-700 bg-red-50 border border-red-100 px-1.5 py-0.2 rounded font-bold uppercase">
+                            {spouse.type || 'Phối ngẫu'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : selectedMember.spouseName ? (
                   <div className="grid grid-cols-3 gap-1 py-1 border-b border-gray-50">
                     <span className="text-gray-400">Bạn đời:</span>
                     <span className="col-span-2 text-[#4a331a] font-semibold">
                       {selectedMember.spouseName} {selectedMember.spouseType ? `(${selectedMember.spouseType})` : ''}
                     </span>
                   </div>
-                )}
+                ) : null}
 
                 {selectedMember.parentId && (
                   <div className="grid grid-cols-3 gap-1 py-1 border-b border-gray-50">

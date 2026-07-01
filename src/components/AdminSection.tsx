@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Member, Announcement, UserAccount } from '../types';
+import { Member, Announcement, UserAccount, SpouseInfo } from '../types';
 import { 
   Users, Megaphone, Plus, Edit2, Trash2, Save, X, 
   UserPlus, CheckCircle, AlertCircle, RefreshCw, KeyRound,
@@ -62,6 +62,9 @@ export default function AdminSection({
   const [deathAnniversaryLunar, setDeathAnniversaryLunar] = useState('');
   const [spouseName, setSpouseName] = useState('');
   const [spouseType, setSpouseType] = useState('');
+  const [formSpouses, setFormSpouses] = useState<any[]>([]);
+  const [tempSpouseName, setTempSpouseName] = useState('');
+  const [tempSpouseType, setTempSpouseType] = useState('');
   const [parentId, setParentId] = useState('');
   const [motherId, setMotherId] = useState('');
   const [relationshipToHead, setRelationshipToHead] = useState('');
@@ -389,6 +392,19 @@ export default function AdminSection({
         const birthDateVal = (idxBirth !== -1 && row[idxBirth]) ? row[idxBirth].trim() : undefined;
         const spouseNameVal = (idxSpouse !== -1 && row[idxSpouse]) ? row[idxSpouse].trim() : undefined;
         const spouseTypeVal = (spouseNameVal && idxSpouseType !== -1 && row[idxSpouseType]) ? row[idxSpouseType].trim() : undefined;
+        
+        let spousesList: SpouseInfo[] | undefined = undefined;
+        if (spouseNameVal) {
+          const names = spouseNameVal.split(/[&;|]|\s+vào\s+|\s+và\s+/).map(n => n.trim()).filter(Boolean);
+          const types = spouseTypeVal ? spouseTypeVal.split(/[&;|]|\s+vào\s+|\s+và\s+/).map(t => t.trim()).filter(Boolean) : [];
+          
+          spousesList = names.map((name, sIdx) => ({
+            id: `spouse-imp-${generatedId}-${sIdx}-${Math.random().toString(36).substring(2, 5)}`,
+            name,
+            type: types[sIdx] || types[0] || (genderVal === 'Nam' ? 'Vợ cả' : 'Chồng')
+          }));
+        }
+
         const contactVal = (idxContact !== -1 && row[idxContact]) ? row[idxContact].trim() : undefined;
         const jobVal = (idxJob !== -1 && row[idxJob]) ? row[idxJob].trim() : undefined;
         const educationVal = (idxEducation !== -1 && row[idxEducation]) ? row[idxEducation].trim() : undefined;
@@ -415,6 +431,7 @@ export default function AdminSection({
           birthDate: birthDateVal || undefined,
           deathDate: isDeceasedVal ? (deathDateVal || undefined) : undefined,
           deathAnniversaryLunar: isDeceasedVal ? (deathAnniversaryLunarVal || undefined) : undefined,
+          spouses: spousesList,
           spouseName: spouseNameVal || undefined,
           spouseType: spouseNameVal ? (spouseTypeVal || undefined) : undefined,
           parentId: parentIdVal,
@@ -661,6 +678,25 @@ export default function AdminSection({
     setDeathAnniversaryLunar(member.deathAnniversaryLunar || '');
     setSpouseName(member.spouseName || '');
     setSpouseType(member.spouseType || '');
+    
+    if (member.spouses && member.spouses.length > 0) {
+      setFormSpouses(member.spouses);
+    } else if (member.spouseName) {
+      // Cố gắng tách nếu có dấu & hoặc và
+      if (member.spouseName.includes('&')) {
+        const parsedSpouses = member.spouseName.split('&').map((s, idx) => ({
+          id: `default-${member.id}-${idx}-${Date.now()}`,
+          name: s.trim(),
+          type: idx === 0 ? 'Vợ cả' : 'Vợ hai'
+        }));
+        setFormSpouses(parsedSpouses);
+      } else {
+        setFormSpouses([{ id: `default-${member.id}-${Date.now()}`, name: member.spouseName, type: member.spouseType || '' }]);
+      }
+    } else {
+      setFormSpouses([]);
+    }
+    
     setParentId(member.parentId || '');
     setMotherId(member.motherId || '');
     setRelationshipToHead(member.relationshipToHead || '');
@@ -754,6 +790,76 @@ export default function AdminSection({
     }
   };
 
+  const handleAddSpouseToList = (name: string, type: string) => {
+    if (!name.trim()) return;
+    const newSpouse = {
+      id: `spouse-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+      name: name.trim(),
+      type: type || 'Vợ cả'
+    };
+    const updated = [...formSpouses, newSpouse];
+    setFormSpouses(updated);
+    
+    // Đồng bộ với trường cũ
+    setSpouseName(updated.map(s => s.name).join(' & '));
+    if (updated.length > 0) {
+      setSpouseType(updated[0].type || '');
+    }
+  };
+
+  const handleRemoveSpouseFromList = (id: string) => {
+    const updated = formSpouses.filter(s => s.id !== id);
+    setFormSpouses(updated);
+    
+    // Đồng bộ với trường cũ
+    setSpouseName(updated.map(s => s.name).join(' & '));
+    if (updated.length > 0) {
+      setSpouseType(updated[0].type || '');
+    } else {
+      setSpouseName('');
+      setSpouseType('');
+    }
+  };
+
+  // Lấy danh sách Mẹ hợp lý của Cha đã chọn
+  const getAvailableMothers = () => {
+    if (!parentId) {
+      return members.filter(m => m.gender === 'Nữ');
+    }
+    const father = members.find(m => m.id === parentId);
+    if (!father) return members.filter(m => m.gender === 'Nữ');
+
+    const relatedMothers = members.filter(m => {
+      if (m.gender !== 'Nữ') return false;
+
+      // Check nếu mẹ có ghi tên bạn đời là cha
+      if (m.spouseName && father.fullName && (m.spouseName.toLowerCase().includes(father.fullName.toLowerCase()) || father.fullName.toLowerCase().includes(m.spouseName.toLowerCase()))) {
+        return true;
+      }
+
+      // Check nếu cha có mảng spouses chứa tên mẹ
+      if (father.spouses && father.spouses.some(s => s.name && (s.name.toLowerCase().includes(m.fullName.toLowerCase()) || m.fullName.toLowerCase().includes(s.name.toLowerCase())))) {
+        return true;
+      }
+
+      // Hoặc cùng thế hệ để chọn linh hoạt
+      if (m.generation === father.generation) {
+        return true;
+      }
+
+      return false;
+    });
+
+    // Sắp xếp ưu tiên các cụ bà có quan hệ bạn đời đã đăng ký
+    return relatedMothers.sort((a, b) => {
+      const aIsSpouse = father.spouseName && a.fullName && father.spouseName.toLowerCase().includes(a.fullName.toLowerCase());
+      const bIsSpouse = father.spouseName && b.fullName && father.spouseName.toLowerCase().includes(b.fullName.toLowerCase());
+      if (aIsSpouse && !bIsSpouse) return -1;
+      if (!aIsSpouse && bIsSpouse) return 1;
+      return 0;
+    });
+  };
+
   // Reset form thành viên
   const resetMemberForm = () => {
     setMemberId('');
@@ -766,6 +872,9 @@ export default function AdminSection({
     setDeathAnniversaryLunar('');
     setSpouseName('');
     setSpouseType('');
+    setFormSpouses([]);
+    setTempSpouseName('');
+    setTempSpouseType('');
     setParentId('');
     setMotherId('');
     setRelationshipToHead('');
@@ -799,8 +908,9 @@ export default function AdminSection({
       birthDate: birthDate || undefined,
       deathDate: isDeceased ? (deathDate || undefined) : undefined,
       deathAnniversaryLunar: isDeceased ? (deathAnniversaryLunar || undefined) : undefined,
-      spouseName: spouseName || undefined,
-      spouseType: spouseName ? (spouseType || undefined) : undefined,
+      spouses: formSpouses,
+      spouseName: formSpouses.map(s => s.name).join(' & ') || undefined,
+      spouseType: formSpouses.length > 0 ? (formSpouses[0].type || undefined) : undefined,
       parentId: parentId || undefined,
       motherId: motherId || undefined,
       relationshipToHead: relationshipToHead || undefined,
@@ -1424,8 +1534,8 @@ export default function AdminSection({
                         className="w-full p-2 border border-red-200 rounded bg-white text-xs text-[#6b4724] font-medium focus:outline-none focus:ring-1 focus:ring-red-400"
                       >
                         <option value="">-- Không chọn Mẹ --</option>
-                        {members.filter(m => m.gender === 'Nữ').map(p => (
-                          <option key={p.id} value={p.id}>{p.fullName} (Đời {p.generation})</option>
+                        {getAvailableMothers().map(p => (
+                          <option key={p.id} value={p.id}>{p.fullName} (Đời {p.generation}){p.spouseName ? ` [Bạn đời: ${p.spouseName}]` : ''}</option>
                         ))}
                       </select>
                       {parentId && members.find(m => m.id === parentId)?.spouseName && (
@@ -1487,56 +1597,103 @@ export default function AdminSection({
                     </div>
                   </div>
                   <div>
-                    <label className="block text-gray-700 font-bold mb-1">Họ Tên Bạn Đời (Vợ / Chồng)</label>
-                    <input 
-                      type="text" 
-                      value={spouseName}
-                      onChange={(e) => setSpouseName(e.target.value)}
-                      placeholder="Nhập tên phối ngẫu"
-                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
-                    />
+                    <label className="block text-gray-700 font-bold mb-1">Bạn Đời (Vợ / Chồng) - Có thể chọn nhiều</label>
                     
-                    {/* RED BOX: Bên ngoại tộc */}
-                    <div className="mt-2 p-3 bg-red-50 border-2 border-red-500 rounded-md shadow-xs">
-                      <label className="block text-red-800 font-bold mb-1.5 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
-                        Bên ngoại tộc
-                      </label>
-                      <input
-                        type="text"
-                        value={spouseType}
-                        onChange={(e) => setSpouseType(e.target.value)}
-                        list="spouse-types-list"
-                        placeholder="Nhập thủ công hoặc chọn Bên ngoại tộc..."
-                        className="w-full p-2 border border-red-300 rounded bg-white text-xs text-[#6b4724] font-bold focus:outline-none focus:ring-1 focus:ring-red-500"
-                      />
+                    {/* Danh sách bạn đời đã được thêm */}
+                    {formSpouses.length > 0 ? (
+                      <div className="mb-2.5 p-2 bg-amber-50/50 border border-[#d6b583] rounded space-y-1.5 max-h-[140px] overflow-y-auto">
+                        {formSpouses.map((spouse) => (
+                          <div key={spouse.id} className="flex items-center justify-between bg-white px-2 py-1.5 rounded border border-gray-100 text-xs shadow-2xs">
+                            <div>
+                              <span className="font-bold text-gray-800">{spouse.name}</span>
+                              <span className="ml-1.5 text-[10px] text-red-700 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded font-bold uppercase">
+                                {spouse.type || 'Chưa phân loại'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSpouseFromList(spouse.id)}
+                              className="text-red-600 hover:text-red-800 font-bold px-1 py-0.5 rounded transition cursor-pointer text-[10px]"
+                              title="Xóa bạn đời này"
+                            >
+                              Xóa
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mb-2.5 text-xs text-gray-500 italic p-2.5 bg-gray-50 rounded border border-gray-200">
+                        Chưa có bạn đời nào được thêm. Vui lòng nhập thông tin phía dưới để thêm.
+                      </div>
+                    )}
+
+                    {/* Form nhập để thêm bạn đời mới */}
+                    <div className="p-3 bg-red-50 border-2 border-red-500 rounded-md shadow-xs space-y-2">
+                      <div className="text-red-800 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></span>
+                        Thêm Bạn Đời Mới
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <input 
+                            type="text" 
+                            value={tempSpouseName}
+                            onChange={(e) => setTempSpouseName(e.target.value)}
+                            placeholder="Tên vợ/chồng..."
+                            className="w-full p-2 border border-[#d6b583] rounded bg-white text-xs focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={tempSpouseType}
+                            onChange={(e) => setTempSpouseType(e.target.value)}
+                            list="spouse-types-list"
+                            placeholder="Phân loại..."
+                            className="w-full p-2 border border-[#d6b583] rounded bg-white text-xs text-[#6b4724] font-bold focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
                       <datalist id="spouse-types-list">
-                        <option value="Cụ bà Chính thất">Cụ bà Chính thất (Bà cả)</option>
-                        <option value="Cụ bà Trắc thất">Cụ bà Trắc thất (Bà hai)</option>
-                        <option value="Cụ bà Thứ thất">Cụ bà Thứ thất (Bà ba)</option>
+                        <option value="Cụ bà Chính thất">Cụ bà Chính thất</option>
+                        <option value="Cụ bà Trắc thất">Cụ bà Trắc thất</option>
+                        <option value="Cụ bà Thứ thất">Cụ bà Thứ thất</option>
                         <option value="Vợ cả">Vợ cả</option>
                         <option value="Vợ hai">Vợ hai</option>
-                        <option value="Bên ngoại cụ">Bên ngoại cụ</option>
-                        <option value="Bên ngoại ông">Bên ngoại ông</option>
-                        <option value="Bên ngoại bà">Bên ngoại bà</option>
-                        <option value="Bên ngoại bác">Bên ngoại bác</option>
-                        <option value="Bên ngoại anh">Bên ngoại anh</option>
                         <option value="Chồng">Chồng</option>
                       </datalist>
-                      
-                      {/* Gợi ý bấm nhanh */}
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {['Cụ bà Chính thất', 'Cụ bà Trắc thất', 'Vợ cả', 'Vợ hai', 'Bên ngoại cụ', 'Bên ngoại ông', 'Bên ngoại bà', 'Bên ngoại bác', 'Bên ngoại anh', 'Chồng'].map((suggested) => (
+
+                      {/* Gợi ý phân loại bấm nhanh */}
+                      <div className="flex flex-wrap gap-1">
+                        {['Cụ bà Chính thất', 'Cụ bà Trắc thất', 'Vợ cả', 'Vợ hai', 'Chồng'].map((suggested) => (
                           <button
                             key={suggested}
                             type="button"
-                            onClick={() => setSpouseType(suggested)}
+                            onClick={() => setTempSpouseType(suggested)}
                             className="px-1.5 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-800 text-[9px] font-bold transition cursor-pointer"
                           >
                             + {suggested}
                           </button>
                         ))}
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tempSpouseName.trim()) {
+                            handleAddSpouseToList(tempSpouseName, tempSpouseType || 'Vợ cả');
+                            setTempSpouseName('');
+                            setTempSpouseType('');
+                          } else {
+                            alert('Vui lòng điền họ tên bạn đời trước.');
+                          }
+                        }}
+                        className="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-1.5 px-3 rounded text-xs transition cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        + Thêm bạn đời vào danh sách
+                      </button>
                     </div>
                   </div>
                   <div>
