@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Member, Announcement, UserAccount } from '../types';
 import { 
   Users, Megaphone, Plus, Edit2, Trash2, Save, X, 
   UserPlus, CheckCircle, AlertCircle, RefreshCw, KeyRound,
-  FileText, FileSpreadsheet
+  FileText, FileSpreadsheet, Upload
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { parseAndCalculateAges } from '../utils/lunarConverter';
@@ -76,6 +76,239 @@ export default function AdminSection({
     setToastMessage(msg);
     setToastType(type);
     setTimeout(() => setToastMessage(''), 4000);
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const importMembersFromCSV = (text: string) => {
+    try {
+      const rows = parseCSV(text);
+      if (rows.length === 0) {
+        showToast('Tệp CSV rỗng hoặc không đúng định dạng.', 'error');
+        return;
+      }
+
+      // Tìm dòng tiêu đề
+      let headerIdx = -1;
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r];
+        const hasNameHeader = row.some(cell => {
+          const c = cell.toLowerCase().replace(/\s+/g, '');
+          return c.includes('họvàtên') || c.includes('họtên') || c === 'tên' || c.includes('fullname');
+        });
+        if (hasNameHeader) {
+          headerIdx = r;
+          break;
+        }
+      }
+
+      if (headerIdx === -1) {
+        showToast('Không tìm thấy dòng tiêu đề (phải có cột Họ và Tên) trong tệp.', 'error');
+        return;
+      }
+
+      const headers = rows[headerIdx].map(h => h.trim().toLowerCase());
+      const dataRows = rows.slice(headerIdx + 1);
+
+      const getIndex = (aliases: string[]) => {
+        return headers.findIndex(h => {
+          const normalized = h.replace(/[^a-z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/gi, '');
+          return aliases.some(alias => normalized.includes(alias.toLowerCase().replace(/[^a-z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/gi, '')));
+        });
+      };
+
+      const idxFullName = getIndex(['họvàtên', 'họtên', 'tên', 'fullname', 'name']);
+      const idxGen = getIndex(['thếhệ', 'đời', 'generation']);
+      const idxGender = getIndex(['giớitính', 'gender']);
+      const idxStatus = getIndex(['tìnhtrạng', 'trạngthái', 'isdeceased', 'deceased', 'status']);
+      const idxParent = getIndex(['họtêncha', 'cha', 'bố', 'mẹ', 'parent']);
+      const idxChi = getIndex(['chingành', 'chi', 'ngành', 'branch']);
+      const idxRel = getIndex(['vaivévớitổ', 'mốiquanhệ', 'relationship']);
+      const idxBirth = getIndex(['nămsinh', 'ngàysinh', 'birth']);
+      const idxSpouse = getIndex(['họtênbạnđời', 'bạnđời', 'phốingẫu', 'spouse']);
+      const idxSpouseType = getIndex(['bầuđoàn', 'phânloạibạnđời', 'spousetype']);
+      const idxContact = getIndex(['sốđiệnthoại', 'liênhệ', 'sđt', 'contact', 'phone']);
+      const idxJob = getIndex(['nghềnghiệp', 'job']);
+      const idxEducation = getIndex(['họcvấn', 'trìnhđộ', 'education']);
+      const idxDeath = getIndex(['nămmất', 'ngàymất', 'death']);
+      const idxDeathLunar = getIndex(['ngàygiỗâmlịch', 'ngàygiỗ', 'anniversary']);
+      const idxResting = getIndex(['nơiantáng', 'mộphần', 'burial', 'resting']);
+      const idxBirthPlace = getIndex(['nơisinh', 'quêquán', 'birthplace']);
+      const idxStory = getIndex(['tiểusử', 'ghichú', 'story', 'biography']);
+
+      if (idxFullName === -1) {
+        showToast('Cột Họ và Tên (*) là bắt buộc.', 'error');
+        return;
+      }
+
+      // Ánh xạ tên -> ID để liên kết Cha/Mẹ
+      const nameToIdMap: { [key: string]: string } = {};
+      members.forEach(m => {
+        nameToIdMap[m.fullName.trim().toLowerCase()] = m.id;
+      });
+
+      const importedMembers: Member[] = [];
+      const rowsWithNewIds = dataRows.map((row, index) => {
+        const rawName = row[idxFullName];
+        if (!rawName || !rawName.trim()) return null;
+        
+        const cleanName = rawName.trim();
+        const generatedId = `mem-imp-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}`;
+        
+        nameToIdMap[cleanName.toLowerCase()] = generatedId;
+        
+        return {
+          row,
+          generatedId,
+          cleanName
+        };
+      }).filter(Boolean) as { row: string[]; generatedId: string; cleanName: string }[];
+
+      if (rowsWithNewIds.length === 0) {
+        showToast('Không có dữ liệu thành viên hợp lệ nào để tải lên.', 'error');
+        return;
+      }
+
+      rowsWithNewIds.forEach(({ row, generatedId, cleanName }) => {
+        const genRaw = idxGen !== -1 ? parseInt(row[idxGen], 10) : 18;
+        const generationVal = isNaN(genRaw) ? 18 : genRaw;
+
+        const genderRaw = idxGender !== -1 ? row[idxGender].trim().toLowerCase() : 'nam';
+        const genderVal: 'Nam' | 'Nữ' = (genderRaw.includes('nữ') || genderRaw.includes('nu') || genderRaw === 'f' || genderRaw === 'female') ? 'Nữ' : 'Nam';
+
+        const statusRaw = idxStatus !== -1 ? row[idxStatus].trim().toLowerCase() : '';
+        const isDeceasedVal = statusRaw.includes('mất') || statusRaw.includes('khuất') || statusRaw.includes('tế') || statusRaw.includes('qua đời') || statusRaw.includes('deceased') || statusRaw.includes('die') || statusRaw === 'mất';
+
+        const chiBranchVal = idxChi !== -1 ? row[idxChi].trim() : 'Chi Cả';
+        const relationshipToHeadVal = idxRel !== -1 ? row[idxRel].trim() : undefined;
+        const birthDateVal = idxBirth !== -1 ? row[idxBirth].trim() : undefined;
+        const spouseNameVal = idxSpouse !== -1 ? row[idxSpouse].trim() : undefined;
+        const spouseTypeVal = spouseNameVal && idxSpouseType !== -1 ? row[idxSpouseType].trim() : undefined;
+        const contactVal = idxContact !== -1 ? row[idxContact].trim() : undefined;
+        const jobVal = idxJob !== -1 ? row[idxJob].trim() : undefined;
+        const educationVal = idxEducation !== -1 ? row[idxEducation].trim() : undefined;
+        const deathDateVal = idxDeath !== -1 ? row[idxDeath].trim() : undefined;
+        const deathAnniversaryLunarVal = idxDeathLunar !== -1 ? row[idxDeathLunar].trim() : undefined;
+        const restingPlaceVal = idxResting !== -1 ? row[idxResting].trim() : undefined;
+        const birthPlaceVal = idxBirthPlace !== -1 ? row[idxBirthPlace].trim() : undefined;
+        const storyVal = idxStory !== -1 ? row[idxStory].trim() : undefined;
+
+        let parentIdVal: string | undefined = undefined;
+        if (idxParent !== -1 && row[idxParent]) {
+          const parentName = row[idxParent].trim().toLowerCase();
+          if (parentName) {
+            parentIdVal = nameToIdMap[parentName] || undefined;
+          }
+        }
+
+        const newMem: Member = {
+          id: generatedId,
+          fullName: cleanName,
+          generation: generationVal,
+          gender: genderVal,
+          isDeceased: isDeceasedVal,
+          birthDate: birthDateVal || undefined,
+          deathDate: isDeceasedVal ? (deathDateVal || undefined) : undefined,
+          deathAnniversaryLunar: isDeceasedVal ? (deathAnniversaryLunarVal || undefined) : undefined,
+          spouseName: spouseNameVal || undefined,
+          spouseType: spouseNameVal ? (spouseTypeVal || undefined) : undefined,
+          parentId: parentIdVal,
+          relationshipToHead: relationshipToHeadVal || undefined,
+          chiBranch: chiBranchVal || 'Chi Cả',
+          birthPlace: birthPlaceVal || undefined,
+          restingPlace: isDeceasedVal ? (restingPlaceVal || undefined) : undefined,
+          contact: !isDeceasedVal ? (contactVal || undefined) : undefined,
+          story: storyVal || undefined,
+          education: educationVal || undefined,
+          job: jobVal || undefined
+        };
+
+        importedMembers.push(newMem);
+      });
+
+      importedMembers.forEach(mem => {
+        onAddMember(mem);
+      });
+
+      showToast(`Tải lên thành công! Đã thêm ${importedMembers.length} thành viên.`);
+    } catch (err) {
+      console.error(err);
+      showToast('Lỗi khi phân tích tệp CSV. Hãy kiểm tra định dạng.', 'error');
+    }
+  };
+
+  const parseCSV = (text: string): string[][] => {
+    const lines: string[][] = [];
+    let row: string[] = [];
+    let inQuotes = false;
+    let currentVal = '';
+    
+    let commaCount = 0;
+    let semicolonCount = 0;
+    for (let i = 0; i < Math.min(text.length, 1000); i++) {
+      if (text[i] === ',') commaCount++;
+      if (text[i] === ';') semicolonCount++;
+    }
+    const separator = semicolonCount > commaCount ? ';' : ',';
+
+    let i = 0;
+    while (i < text.length) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentVal += '"';
+          i += 2;
+        } else {
+          inQuotes = !inQuotes;
+          i++;
+        }
+      } else if (char === separator && !inQuotes) {
+        row.push(currentVal.trim());
+        currentVal = '';
+        i++;
+      } else if ((char === '\r' || char === '\n') && !inQuotes) {
+        row.push(currentVal.trim());
+        currentVal = '';
+        if (row.length > 0 || (row.length === 1 && row[0] !== '')) {
+          lines.push(row);
+        }
+        row = [];
+        if (char === '\r' && nextChar === '\n') {
+          i += 2;
+        } else {
+          i++;
+        }
+      } else {
+        currentVal += char;
+        i++;
+      }
+    }
+    if (currentVal || row.length > 0) {
+      row.push(currentVal.trim());
+      lines.push(row);
+    }
+    return lines;
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        importMembersFromCSV(text);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
   };
 
   // Mở Form sửa Thành Viên
@@ -556,7 +789,24 @@ export default function AdminSection({
                   <Users className="w-5 h-5 text-[#b8956b]" />
                   {editingMemberId ? 'Cập Nhật Hồ Sơ Thành Viên' : 'Thêm Thành Viên Mới Vào Gia Phả'}
                 </h3>
-                <div className="flex items-center gap-2 self-end sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                  {/* Hidden file input for CSV import */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    accept=".csv"
+                    className="hidden"
+                  />
+                  {/* Upload list CSV */}
+                  <button
+                    type="button"
+                    onClick={triggerFileInput}
+                    title="Tải lên danh sách thành viên từ máy tính (.csv)"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition text-[10px] font-bold focus:outline-none cursor-pointer shadow-xs"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Tải Lên Danh Sách (.csv)
+                  </button>
                   {/* Word Template download */}
                   <button
                     type="button"
@@ -746,12 +996,15 @@ export default function AdminSection({
                         <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
                         Bầu đoàn (Phân loại Bạn đời)
                       </label>
-                      <select
+                      <input
+                        type="text"
                         value={spouseType}
                         onChange={(e) => setSpouseType(e.target.value)}
-                        className="w-full p-2 border border-red-300 rounded bg-white text-xs text-[#6b4724] font-bold focus:outline-none focus:ring-1 focus:ring-red-500 cursor-pointer"
-                      >
-                        <option value="">-- Chưa phân loại / Bạn đời --</option>
+                        list="spouse-types-list"
+                        placeholder="Nhập thủ công hoặc chọn bầu đoàn bên dưới..."
+                        className="w-full p-2 border border-red-300 rounded bg-white text-xs text-[#6b4724] font-bold focus:outline-none focus:ring-1 focus:ring-red-500"
+                      />
+                      <datalist id="spouse-types-list">
                         <option value="Cụ bà Chính thất">Cụ bà Chính thất (Bà cả)</option>
                         <option value="Cụ bà Trắc thất">Cụ bà Trắc thất (Bà hai)</option>
                         <option value="Cụ bà Thứ thất">Cụ bà Thứ thất (Bà ba)</option>
@@ -759,8 +1012,21 @@ export default function AdminSection({
                         <option value="Vợ hai">Vợ hai</option>
                         <option value="Chồng">Chồng</option>
                         <option value="Chồng chính thất">Chồng chính thất (Cụ ông cả)</option>
-                        <option value="Khác">Phân loại khác (Ghi trong tiểu sử)</option>
-                      </select>
+                      </datalist>
+                      
+                      {/* Gợi ý bấm nhanh */}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {['Cụ bà Chính thất', 'Cụ bà Trắc thất', 'Vợ cả', 'Vợ hai', 'Chồng'].map((suggested) => (
+                          <button
+                            key={suggested}
+                            type="button"
+                            onClick={() => setSpouseType(suggested)}
+                            className="px-1.5 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-800 text-[9px] font-bold transition cursor-pointer"
+                          >
+                            + {suggested}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                   <div>
