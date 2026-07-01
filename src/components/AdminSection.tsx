@@ -1,0 +1,843 @@
+import React, { useState } from 'react';
+import { Member, Announcement, UserAccount } from '../types';
+import { 
+  Users, Megaphone, Plus, Edit2, Trash2, Save, X, 
+  UserPlus, CheckCircle, AlertCircle, RefreshCw, KeyRound 
+} from 'lucide-react';
+import { motion } from 'motion/react';
+
+interface AdminSectionProps {
+  members: Member[];
+  announcements: Announcement[];
+  accounts: UserAccount[];
+  onAddMember: (member: Member) => void;
+  onUpdateMember: (member: Member) => void;
+  onDeleteMember: (id: string) => void;
+  onAddAnnouncement: (ann: Announcement) => void;
+  onUpdateAnnouncement: (ann: Announcement) => void;
+  onDeleteAnnouncement: (id: string) => void;
+  editingMemberId: string | null;
+  setEditingMemberId: (id: string | null) => void;
+}
+
+export default function AdminSection({
+  members,
+  announcements,
+  accounts,
+  onAddMember,
+  onUpdateMember,
+  onDeleteMember,
+  onAddAnnouncement,
+  onUpdateAnnouncement,
+  onDeleteAnnouncement,
+  editingMemberId,
+  setEditingMemberId
+}: AdminSectionProps) {
+  // Tabs: members or announcements
+  const [activeTab, setActiveTab] = useState<'members' | 'announcements' | 'accounts'>('members');
+
+  // Trạng thái Form Thành Viên
+  const [showMemberForm, setShowMemberForm] = useState(false);
+  const [memberId, setMemberId] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [generation, setGeneration] = useState<number>(18);
+  const [gender, setGender] = useState<'Nam' | 'Nữ'>('Nam');
+  const [isDeceased, setIsDeceased] = useState(false);
+  const [birthDate, setBirthDate] = useState('');
+  const [deathDate, setDeathDate] = useState('');
+  const [deathAnniversaryLunar, setDeathAnniversaryLunar] = useState('');
+  const [spouseName, setSpouseName] = useState('');
+  const [parentId, setParentId] = useState('');
+  const [relationshipToHead, setRelationshipToHead] = useState('');
+  const [chiBranch, setChiBranch] = useState('Chi Cả');
+  const [birthPlace, setBirthPlace] = useState('');
+  const [restingPlace, setRestingPlace] = useState('');
+  const [contact, setContact] = useState('');
+  const [story, setStory] = useState('');
+  const [education, setEducation] = useState('');
+  const [job, setJob] = useState('');
+
+  // Trạng thái Form Thông Báo
+  const [showAnnForm, setShowAnnForm] = useState(false);
+  const [annId, setAnnId] = useState('');
+  const [annTitle, setAnnTitle] = useState('');
+  const [annContent, setAnnContent] = useState('');
+  const [annCategory, setAnnCategory] = useState<'QUAN TRỌNG' | 'CẬP NHẬT' | 'TIN BUỒN' | 'TIN VUI'>('CẬP NHẬT');
+  const [annDate, setAnnDate] = useState('');
+
+  // Sửa lỗi / Hiển thị thông báo thành công
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(msg);
+    setToastType(type);
+    setTimeout(() => setToastMessage(''), 4000);
+  };
+
+  // Mở Form sửa Thành Viên
+  const handleEditMemberClick = (member: Member) => {
+    setMemberId(member.id);
+    setFullName(member.fullName);
+    setGeneration(member.generation);
+    setGender(member.gender);
+    setIsDeceased(member.isDeceased);
+    setBirthDate(member.birthDate || '');
+    setDeathDate(member.deathDate || '');
+    setDeathAnniversaryLunar(member.deathAnniversaryLunar || '');
+    setSpouseName(member.spouseName || '');
+    setParentId(member.parentId || '');
+    setRelationshipToHead(member.relationshipToHead || '');
+    setChiBranch(member.chiBranch || 'Chi Cả');
+    setBirthPlace(member.birthPlace || '');
+    setRestingPlace(member.restingPlace || '');
+    setContact(member.contact || '');
+    setStory(member.story || '');
+    setEducation(member.education || '');
+    setJob(member.job || '');
+    
+    setEditingMemberId(member.id);
+    setShowMemberForm(true);
+  };
+
+  // Reset form thành viên
+  const resetMemberForm = () => {
+    setMemberId('');
+    setFullName('');
+    setGeneration(18);
+    setGender('Nam');
+    setIsDeceased(false);
+    setBirthDate('');
+    setDeathDate('');
+    setDeathAnniversaryLunar('');
+    setSpouseName('');
+    setParentId('');
+    setRelationshipToHead('');
+    setChiBranch('Chi Cả');
+    setBirthPlace('');
+    setRestingPlace('');
+    setContact('');
+    setStory('');
+    setEducation('');
+    setJob('');
+    
+    setEditingMemberId(null);
+    setShowMemberForm(false);
+  };
+
+  // Submit Thành Viên (Thêm hoặc Cập nhật)
+  const handleMemberSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim()) {
+      showToast('Vui lòng nhập họ tên thành viên.', 'error');
+      return;
+    }
+
+    const mData: Member = {
+      id: editingMemberId || `mem-${Date.now()}`,
+      fullName,
+      generation,
+      gender,
+      isDeceased,
+      birthDate: birthDate || undefined,
+      deathDate: isDeceased ? (deathDate || undefined) : undefined,
+      deathAnniversaryLunar: isDeceased ? (deathAnniversaryLunar || undefined) : undefined,
+      spouseName: spouseName || undefined,
+      parentId: parentId || undefined,
+      relationshipToHead: relationshipToHead || undefined,
+      chiBranch: chiBranch || undefined,
+      birthPlace: birthPlace || undefined,
+      restingPlace: isDeceased ? (restingPlace || undefined) : undefined,
+      contact: !isDeceased ? (contact || undefined) : undefined,
+      story: story || undefined,
+      education: education || undefined,
+      job: job || undefined
+    };
+
+    if (editingMemberId) {
+      onUpdateMember(mData);
+      showToast('Cập nhật thông tin thành viên thành công!');
+    } else {
+      onAddMember(mData);
+      showToast('Thêm mới thành viên thành công!');
+    }
+
+    resetMemberForm();
+  };
+
+  const handleDeleteMemberClick = (id: string, name: string) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa thành viên "${name}" ra khỏi Gia Phả? Thao tác này không thể hoàn tác.`)) {
+      onDeleteMember(id);
+      showToast(`Đã xóa thành viên ${name}.`);
+    }
+  };
+
+  // Mở Form sửa thông báo
+  const handleEditAnnClick = (ann: Announcement) => {
+    setAnnId(ann.id);
+    setAnnTitle(ann.title);
+    setAnnContent(ann.content);
+    setAnnCategory(ann.category);
+    setAnnDate(ann.date);
+    setShowAnnForm(true);
+  };
+
+  const resetAnnForm = () => {
+    setAnnId('');
+    setAnnTitle('');
+    setAnnContent('');
+    setAnnCategory('CẬP NHẬT');
+    setAnnDate('');
+    setShowAnnForm(false);
+  };
+
+  const handleAnnSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!annTitle.trim() || !annContent.trim()) {
+      showToast('Vui lòng nhập đầy đủ tiêu đề và nội dung thông báo.', 'error');
+      return;
+    }
+
+    const annData: Announcement = {
+      id: annId || `ann-${Date.now()}`,
+      title: annTitle,
+      content: annContent,
+      category: annCategory,
+      date: annDate || new Date().toISOString().split('T')[0]
+    };
+
+    if (annId) {
+      onUpdateAnnouncement(annData);
+      showToast('Cập nhật thông báo thành công!');
+    } else {
+      onAddAnnouncement(annData);
+      showToast('Đăng thông báo mới thành công!');
+    }
+
+    resetAnnForm();
+  };
+
+  const handleDeleteAnnClick = (id: string, title: string) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa thông báo "${title}"?`)) {
+      onDeleteAnnouncement(id);
+      showToast('Đã xóa thông báo.');
+    }
+  };
+
+  // Phục vụ sửa chữa nhanh từ bên ngoài (nếu gọi editMemberId)
+  if (editingMemberId && !showMemberForm) {
+    const mem = members.find(m => m.id === editingMemberId);
+    if (mem) {
+      handleEditMemberClick(mem);
+    }
+  }
+
+  return (
+    <div id="admin-view" className="w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      
+      {/* Toast popup */}
+      {toastMessage && (
+        <div className={`fixed bottom-5 right-5 z-[200] p-4 rounded-lg shadow-xl flex items-center gap-2 border text-sm font-semibold animate-bounce ${
+          toastType === 'success' 
+            ? 'bg-green-50 border-green-200 text-green-800' 
+            : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          {toastType === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* HEADER ROW */}
+      <div className="bg-white rounded-lg shadow-sm border border-[#eadecb] p-6 mb-6">
+        <h2 className="text-2xl font-bold text-[#6b4724] font-playfair flex items-center gap-2 uppercase tracking-wider">
+          <KeyRound className="w-6 h-6 text-[#b8956b]" /> Bàn Làm Việc Hội Đồng Quản Trị
+        </h2>
+        <p className="text-xs text-[#8b7355] mt-1 font-sans">
+          Cập nhật hồ sơ phả hệ, đăng thông báo chi tộc và theo dõi danh sách thành viên truy cập hệ thống.
+        </p>
+
+        {/* TABS NAVIGATION */}
+        <div className="flex border-b border-[#eadecb] mt-6 gap-2">
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`py-2 px-4 text-xs font-bold uppercase transition flex items-center gap-1.5 focus:outline-none cursor-pointer ${
+              activeTab === 'members' 
+                ? 'border-b-2 border-[#b8956b] text-[#6b4724]' 
+                : 'text-gray-400 hover:text-[#6b4724]'
+            }`}
+          >
+            <Users className="w-4 h-4" /> Quản lý Thành Viên
+          </button>
+          <button
+            onClick={() => setActiveTab('announcements')}
+            className={`py-2 px-4 text-xs font-bold uppercase transition flex items-center gap-1.5 focus:outline-none cursor-pointer ${
+              activeTab === 'announcements' 
+                ? 'border-b-2 border-[#b8956b] text-[#6b4724]' 
+                : 'text-gray-400 hover:text-[#6b4724]'
+            }`}
+          >
+            <Megaphone className="w-4 h-4" /> Bản tin Thông Báo
+          </button>
+          <button
+            onClick={() => setActiveTab('accounts')}
+            className={`py-2 px-4 text-xs font-bold uppercase transition flex items-center gap-1.5 focus:outline-none cursor-pointer ${
+              activeTab === 'accounts' 
+                ? 'border-b-2 border-[#b8956b] text-[#6b4724]' 
+                : 'text-gray-400 hover:text-[#6b4724]'
+            }`}
+          >
+            <KeyRound className="w-4 h-4" /> Tài khoản Quản trị
+          </button>
+        </div>
+      </div>
+
+      {/* 1. TAB: QUẢN LÝ THÀNH VIÊN */}
+      {activeTab === 'members' && (
+        <div className="space-y-6">
+          
+          {/* Nút Thêm mới và Thanh thống kê */}
+          {!showMemberForm && (
+            <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-[#eadecb]">
+              <span className="text-xs font-semibold text-[#8b7355]">
+                Đang có <strong className="text-[#6b4724] font-mono">{members.length}</strong> nhân khẩu trong dòng họ
+              </span>
+              <button
+                onClick={() => { resetMemberForm(); setShowMemberForm(true); }}
+                className="bg-[#b8956b] hover:bg-[#8b7355] text-white py-2 px-4 rounded text-xs font-bold flex items-center gap-1 cursor-pointer focus:outline-none"
+              >
+                <Plus className="w-4 h-4" /> Thêm Thành Viên Mới
+              </button>
+            </div>
+          )}
+
+          {/* Form Thêm/Sửa Thành Viên */}
+          {showMemberForm && (
+            <div className="bg-[#faf8f2] rounded-lg border-2 border-[#b8956b] p-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center border-b border-[#eadecb] pb-3 mb-5">
+                <h3 className="text-lg font-bold text-[#6b4724] font-playfair flex items-center gap-1.5">
+                  <Users className="w-5 h-5 text-[#b8956b]" />
+                  {editingMemberId ? 'Cập Nhật Hồ Sơ Thành Viên' : 'Thêm Thành Viên Mới Vào Gia Phả'}
+                </h3>
+                <button 
+                  onClick={resetMemberForm}
+                  className="text-gray-400 hover:text-[#6b4724] p-1.5 focus:outline-none cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleMemberSubmit} className="space-y-4 text-xs">
+                
+                {/* Dòng 1: Họ tên + Thế hệ + Giới tính */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Họ và Tên *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Nhập đầy đủ tên (ví dụ: Nghiêm Xuân Sơn)"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none focus:ring-1 focus:ring-[#b8956b]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Thế Hệ (Đời thứ mấy) *</label>
+                    <select
+                      value={generation}
+                      onChange={(e) => setGeneration(Number(e.target.value))}
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none focus:ring-1 focus:ring-[#b8956b]"
+                    >
+                      <option value={15}>Đời Thứ 15 (Cụ Tổ Điều/Mai)</option>
+                      <option value={16}>Đời Thứ 16 (Cụ Cung)</option>
+                      <option value={17}>Đời Thứ 17 (Bố, Cô, Bác)</option>
+                      <option value={18}>Đời Thứ 18 (Anh, Chị, Em)</option>
+                      <option value={19}>Đời Thứ 19 (Con, Cháu)</option>
+                      <option value={20}>Đời Thứ 20</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Giới Tính *</label>
+                    <div className="flex gap-4 mt-2">
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer font-medium">
+                        <input 
+                          type="radio" 
+                          name="gender" 
+                          checked={gender === 'Nam'}
+                          onChange={() => setGender('Nam')}
+                          className="text-[#b8956b] focus:ring-[#b8956b]"
+                        /> Nam
+                      </label>
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer font-medium">
+                        <input 
+                          type="radio" 
+                          name="gender" 
+                          checked={gender === 'Nữ'}
+                          onChange={() => setGender('Nữ')}
+                          className="text-[#b8956b] focus:ring-[#b8956b]"
+                        /> Nữ
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dòng 2: Trạng thái Sống/Mất + Cha mẹ (parentId) + Chi nhánh */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Tình Trạng Bản Thân *</label>
+                    <div className="flex gap-4 mt-2">
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer font-medium">
+                        <input 
+                          type="radio" 
+                          name="isDeceased" 
+                          checked={!isDeceased}
+                          onChange={() => setIsDeceased(false)}
+                          className="text-[#b8956b]"
+                        /> Còn Sống
+                      </label>
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer font-medium">
+                        <input 
+                          type="radio" 
+                          name="isDeceased" 
+                          checked={isDeceased}
+                          onChange={() => setIsDeceased(true)}
+                          className="text-[#b8956b]"
+                        /> Đã Khuất / Kính Tế
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Cấp Trên Trong Họ (Chọn Cha/Mẹ)</label>
+                    <select
+                      value={parentId}
+                      onChange={(e) => setParentId(e.target.value)}
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none focus:ring-1 focus:ring-[#b8956b]"
+                    >
+                      <option value="">-- Là Cấp Tổ / Không chọn --</option>
+                      {members.filter(m => m.gender === 'Nam').map(p => (
+                        <option key={p.id} value={p.id}>{p.fullName} (Đời {p.generation})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Chi / Ngành Trực Thuộc</label>
+                    <input 
+                      type="text" 
+                      value={chiBranch}
+                      onChange={(e) => setChiBranch(e.target.value)}
+                      placeholder="ví dụ: Nhánh Cụ Bà Hai, Chi Cả..."
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Dòng 3: Năm sinh + Bạn đời (spouse) + Chức danh */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Năm Sinh (Dương lịch hoặc khoảng năm)</label>
+                    <input 
+                      type="text" 
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      placeholder="ví dụ: 1985 hoặc 15-08-1985"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Họ Tên Bạn Đời (Vợ / Chồng)</label>
+                    <input 
+                      type="text" 
+                      value={spouseName}
+                      onChange={(e) => setSpouseName(e.target.value)}
+                      placeholder="Nhập tên phối ngẫu phối ngẫu"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Mối Quan Hệ Với Tổ (Xác định vai vế)</label>
+                    <input 
+                      type="text" 
+                      value={relationshipToHead}
+                      onChange={(e) => setRelationshipToHead(e.target.value)}
+                      placeholder="ví dụ: Con trai cả, Cháu nội trưởng..."
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Dòng 4: Nếu đã mất (Năm mất + Ngày giỗ âm + Nơi an táng) */}
+                {isDeceased && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-amber-50/50 p-4 rounded border border-amber-100"
+                  >
+                    <div>
+                      <label className="block text-amber-900 font-bold mb-1">Năm Mất (Dương lịch)</label>
+                      <input 
+                        type="text" 
+                        value={deathDate}
+                        onChange={(e) => setDeathDate(e.target.value)}
+                        placeholder="ví dụ: 2021"
+                        className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-amber-900 font-bold mb-1">Ngày Giỗ Âm Lịch (Bắt buộc) *</label>
+                      <input 
+                        type="text" 
+                        value={deathAnniversaryLunar}
+                        onChange={(e) => setDeathAnniversaryLunar(e.target.value)}
+                        placeholder="ví dụ: 12 tháng 3 hoặc 02 tháng 9"
+                        className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-amber-900 font-bold mb-1">Nơi An Táng (Mộ phần)</label>
+                      <input 
+                        type="text" 
+                        value={restingPlace}
+                        onChange={(e) => setRestingPlace(e.target.value)}
+                        placeholder="ví dụ: Nghĩa trang Đồng Vông, Hòa Xá"
+                        className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Dòng 5: Nếu còn sống (SĐT + Quê quán + Nghề nghiệp) */}
+                {!isDeceased && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1">Số Điện Thoại Liên Hệ</label>
+                      <input 
+                        type="text" 
+                        value={contact}
+                        onChange={(e) => setContact(e.target.value)}
+                        placeholder="ví dụ: 0912.345.678"
+                        className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1">Nghề Nghiệp Hiện Tại</label>
+                      <input 
+                        type="text" 
+                        value={job}
+                        onChange={(e) => setJob(e.target.value)}
+                        placeholder="ví dụ: Bác sĩ, Giáo viên, Doanh nhân..."
+                        className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1">Học vấn / Trình độ</label>
+                      <input 
+                        type="text" 
+                        value={education}
+                        onChange={(e) => setEducation(e.target.value)}
+                        placeholder="ví dụ: Thạc sĩ, Cử nhân Bách Khoa..."
+                        className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Quê quán */}
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Nơi Sinh / Quê Quán</label>
+                  <input 
+                    type="text" 
+                    value={birthPlace}
+                    onChange={(e) => setBirthPlace(e.target.value)}
+                    placeholder="ví dụ: Hòa Xá, Ứng Hòa, Hà Nội"
+                    className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                  />
+                </div>
+
+                {/* Tiểu sử */}
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Tiểu Sử / Biểu Sử Cuộc Đời</label>
+                  <textarea 
+                    rows={4}
+                    value={story}
+                    onChange={(e) => setStory(e.target.value)}
+                    placeholder="Nhập những ghi chú về cuộc đời, đóng góp xây dựng họ hàng của thành viên..."
+                    className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none resize-none"
+                  ></textarea>
+                </div>
+
+                {/* Submit buttons */}
+                <div className="flex gap-2 justify-end pt-3">
+                  <button
+                    type="button"
+                    onClick={resetMemberForm}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-5 rounded text-sm transition cursor-pointer"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-[#b8956b] hover:bg-[#8b7355] text-white font-bold py-2 px-6 rounded text-sm transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" /> {editingMemberId ? 'Lưu cập nhật' : 'Thêm vào Gia Phả'}
+                  </button>
+                </div>
+
+              </form>
+            </div>
+          )}
+
+          {/* BẢNG LIỆT KÊ DANH SÁCH THÀNH VIÊN */}
+          <div className="bg-white rounded-lg border border-[#eadecb] overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#f4ecd8] text-[#6b4724] border-b-2 border-[#d6b583] font-bold">
+                    <th className="p-3.5">Họ và Tên</th>
+                    <th className="p-3.5">Giới Tính</th>
+                    <th className="p-3.5">Thế Hệ</th>
+                    <th className="p-3.5">Tình Trạng</th>
+                    <th className="p-3.5">Mối Quan Hệ</th>
+                    <th className="p-3.5">Chi Nhánh</th>
+                    <th className="p-3.5 text-right">Chức Năng</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#faf5eb]">
+                  {members.map(member => (
+                    <tr key={member.id} className="hover:bg-[#faf8f2] transition duration-150">
+                      <td className="p-3.5 font-bold text-[#6b4724] uppercase">{member.fullName}</td>
+                      <td className="p-3.5">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          member.gender === 'Nam' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'
+                        }`}>
+                          {member.gender}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-mono font-semibold">Đời thứ {member.generation}</td>
+                      <td className="p-3.5">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          member.isDeceased ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {member.isDeceased ? 'Tưởng Niệm' : 'Còn sống'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-gray-500 font-medium">{member.relationshipToHead || 'Con cháu'}</td>
+                      <td className="p-3.5 text-gray-500">{member.chiBranch || 'Chi Cả'}</td>
+                      <td className="p-3.5 text-right flex justify-end gap-1">
+                        <button
+                          onClick={() => handleEditMemberClick(member)}
+                          className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white p-1.5 rounded transition cursor-pointer border border-blue-200"
+                          title="Sửa"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMemberClick(member.id, member.fullName)}
+                          className="bg-red-50 hover:bg-red-600 text-red-700 hover:text-white p-1.5 rounded transition cursor-pointer border border-red-200"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* 2. TAB: QUẢN LÝ THÔNG BÁO */}
+      {activeTab === 'announcements' && (
+        <div className="space-y-6">
+          
+          {/* Nút đăng tin */}
+          {!showAnnForm && (
+            <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-[#eadecb]">
+              <span className="text-xs font-semibold text-[#8b7355]">
+                Đang có <strong className="text-[#6b4724] font-mono">{announcements.length}</strong> thông báo công bố trên bảng tin
+              </span>
+              <button
+                onClick={() => { resetAnnForm(); setShowAnnForm(true); }}
+                className="bg-[#b8956b] hover:bg-[#8b7355] text-white py-2 px-4 rounded text-xs font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Đăng Thông Báo Mới
+              </button>
+            </div>
+          )}
+
+          {/* Form đăng thông báo */}
+          {showAnnForm && (
+            <div className="bg-[#faf8f2] rounded-lg border-2 border-[#b8956b] p-6">
+              <div className="flex justify-between items-center border-b border-[#eadecb] pb-3 mb-5">
+                <h3 className="text-lg font-bold text-[#6b4724] font-playfair flex items-center gap-1.5">
+                  <Megaphone className="w-5 h-5 text-[#b8956b]" />
+                  {annId ? 'Cập Nhật Bản Tin' : 'Đăng Thông Báo Gia Tộc Mới'}
+                </h3>
+                <button onClick={resetAnnForm} className="text-gray-400 hover:text-[#6b4724] p-1 cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAnnSubmit} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Tiêu Đề Bản Tin *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={annTitle}
+                      onChange={(e) => setAnnTitle(e.target.value)}
+                      placeholder="ví dụ: Họp chi ngành chuẩn bị chạt mộ Tổ tiên"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Phân Nhóm Thông Báo *</label>
+                    <select
+                      value={annCategory}
+                      onChange={(e) => setAnnCategory(e.target.value as any)}
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm"
+                    >
+                      <option value="QUAN TRỌNG">QUAN TRỌNG</option>
+                      <option value="CẬP NHẬT">CẬP NHẬT</option>
+                      <option value="TIN BUỒN">TIN BUỒN</option>
+                      <option value="TIN VUI">TIN VUI</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Nội dung thông báo phát hành *</label>
+                  <textarea 
+                    rows={5}
+                    required
+                    value={annContent}
+                    onChange={(e) => setAnnContent(e.target.value)}
+                    placeholder="Nhập nội dung đầy đủ của thông báo dòng họ..."
+                    className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm resize-none"
+                  ></textarea>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={resetAnnForm}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-5 rounded text-sm cursor-pointer"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-[#b8956b] hover:bg-[#8b7355] text-white font-bold py-2 px-6 rounded text-sm cursor-pointer"
+                  >
+                    Lưu tin đăng
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* BẢNG LIỆT KÊ THÔNG BÁO */}
+          <div className="bg-white rounded-lg border border-[#eadecb] overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#f4ecd8] text-[#6b4724] border-b-2 border-[#d6b583] font-bold">
+                    <th className="p-3.5" style={{ width: '15%' }}>Thể Loại</th>
+                    <th className="p-3.5" style={{ width: '30%' }}>Tiêu Đề Bản Tin</th>
+                    <th className="p-3.5" style={{ width: '40%' }}>Nội Dung Tóm Tắt</th>
+                    <th className="p-3.5 text-right" style={{ width: '15%' }}>Hành Động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#faf5eb]">
+                  {announcements.map(ann => (
+                    <tr key={ann.id} className="hover:bg-[#faf8f2] transition duration-150">
+                      <td className="p-3.5">
+                        <span className={`px-2.5 py-0.5 rounded font-bold text-[10px] ${
+                          ann.category === 'QUAN TRỌNG' ? 'bg-red-100 text-red-700' :
+                          ann.category === 'CẬP NHẬT' ? 'bg-blue-100 text-blue-700' :
+                          ann.category === 'TIN BUỒN' ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {ann.category}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-bold text-[#6b4724]">{ann.title}</td>
+                      <td className="p-3.5 text-gray-500 line-clamp-2 max-w-[350px]">{ann.content}</td>
+                      <td className="p-3.5 text-right flex justify-end gap-1">
+                        <button
+                          onClick={() => handleEditAnnClick(ann)}
+                          className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white p-1.5 rounded border border-blue-200 cursor-pointer"
+                          title="Sửa bản tin"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAnnClick(ann.id, ann.title)}
+                          className="bg-red-50 hover:bg-red-600 text-red-700 hover:text-white p-1.5 rounded border border-red-200 cursor-pointer"
+                          title="Xóa bản tin"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* 3. TAB: TÀI KHOẢN HỆ THỐNG */}
+      {activeTab === 'accounts' && (
+        <div className="bg-white rounded-lg border border-[#eadecb] p-6 shadow-xs">
+          <h3 className="text-lg font-bold text-[#6b4724] font-playfair mb-4 border-b border-dashed border-[#eadecb] pb-2 flex justify-between items-center">
+            Danh Sách Tài Khoản Được Phân Quyền
+            <span className="text-xs font-normal bg-[#eadecb] text-[#4a3219] px-2.5 py-0.5 rounded-full font-mono">
+              Sĩ số: {accounts.length}
+            </span>
+          </h3>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#f4ecd8] text-[#6b4724] border-b-2 border-[#d6b583] font-bold">
+                  <th className="p-3.5">Họ và Tên Tài Khoản</th>
+                  <th className="p-3.5">Tên Đăng Nhập</th>
+                  <th className="p-3.5">Vai Trò / Phân Quyền</th>
+                  <th className="p-3.5">Tình trạng phiên</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#faf5eb]">
+                {accounts.map(acc => (
+                  <tr key={acc.id} className="hover:bg-[#faf8f2]">
+                    <td className="p-3.5 font-bold text-[#6b4724]">{acc.fullName}</td>
+                    <td className="p-3.5 font-mono text-sm font-semibold text-gray-500">{acc.username}</td>
+                    <td className="p-3.5">
+                      <span className={`px-2.5 py-0.5 rounded font-bold text-[10px] ${
+                        acc.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {acc.role === 'admin' ? 'Hội Đồng Gia Tộc (Admin)' : 'Thành Viên Đọc (User)'}
+                      </span>
+                    </td>
+                    <td className="p-3.5">
+                      <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-700">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Đang hoạt động
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
