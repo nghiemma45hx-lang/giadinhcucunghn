@@ -114,10 +114,23 @@ export default function App() {
   const fetchSupabaseData = async () => {
     setSupabaseLoading(true);
     try {
-      const membersRes = await dbGetMembers();
-      const announcementsRes = await dbGetAnnouncements();
-      const memoriesRes = await dbGetMemories();
-      const settingsRes = await dbGetSettings();
+      // Đọc dữ liệu từ local state / localStorage hiện tại làm dữ phòng seed nếu mây trống
+      const savedMembers = localStorage.getItem('nghiem_members');
+      const backupMembers = savedMembers ? JSON.parse(savedMembers) : members;
+
+      const savedAnnouncements = localStorage.getItem('nghiem_announcements');
+      const backupAnnouncements = savedAnnouncements ? JSON.parse(savedAnnouncements) : announcements;
+
+      const savedMemories = localStorage.getItem('nghiem_memories');
+      const backupMemories = savedMemories ? JSON.parse(savedMemories) : memories;
+
+      const savedSettings = localStorage.getItem('nghiem_settings');
+      const backupSettings = savedSettings ? JSON.parse(savedSettings) : settings;
+
+      const membersRes = await dbGetMembers(backupMembers);
+      const announcementsRes = await dbGetAnnouncements(backupAnnouncements);
+      const memoriesRes = await dbGetMemories(backupMemories);
+      const settingsRes = await dbGetSettings(backupSettings);
 
       if (membersRes.needsSetup || announcementsRes.needsSetup || memoriesRes.needsSetup || settingsRes.needsSetup) {
         setSupabaseNeedsSetup(true);

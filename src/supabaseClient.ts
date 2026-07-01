@@ -110,7 +110,7 @@ function isTableMissingError(error: any): boolean {
 /**
  * 1. QUẢN LÝ THÀNH VIÊN (MEMBERS)
  */
-export async function dbGetMembers(): Promise<{ data: Member[]; needsSetup: boolean; error?: string }> {
+export async function dbGetMembers(localBackup?: Member[]): Promise<{ data: Member[]; needsSetup: boolean; error?: string }> {
   try {
     const { data, error } = await supabase
       .from('members')
@@ -124,13 +124,14 @@ export async function dbGetMembers(): Promise<{ data: Member[]; needsSetup: bool
       throw error;
     }
 
-    // Nếu bảng tồn tại nhưng rỗng, thực hiện seed dữ liệu ban đầu
+    // Nếu bảng tồn tại nhưng rỗng, thực hiện seed dữ liệu ban đầu từ localBackup hoặc INITIAL_MEMBERS
     if (!data || data.length === 0) {
-      console.log('Bảng members trống, tự động seed dữ liệu ban đầu...');
-      const seedData = INITIAL_MEMBERS.map(member => {
+      console.log('Bảng members trống, tự động seed dữ liệu...');
+      const seedSource = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_MEMBERS;
+      const seedData = seedSource.map(member => {
         const dbMember = { ...member };
         if (member.spouses) {
-          (dbMember as any).spouses = JSON.stringify(member.spouses);
+          (dbMember as any).spouses = typeof member.spouses === 'string' ? member.spouses : JSON.stringify(member.spouses);
         } else if (member.spouseName) {
           const spousesArr = [{ id: 'default-' + member.id, name: member.spouseName, type: member.spouseType || '' }];
           (dbMember as any).spouses = JSON.stringify(spousesArr);
@@ -139,7 +140,7 @@ export async function dbGetMembers(): Promise<{ data: Member[]; needsSetup: bool
       });
       const { error: seedError } = await supabase.from('members').insert(seedData);
       if (!seedError) {
-        return { data: INITIAL_MEMBERS, needsSetup: false };
+        return { data: seedSource, needsSetup: false };
       }
     }
 
@@ -272,7 +273,7 @@ export async function dbSyncAllMembers(members: Member[]): Promise<boolean> {
 /**
  * 2. QUẢN LÝ THÔNG BÁO (ANNOUNCEMENTS)
  */
-export async function dbGetAnnouncements(): Promise<{ data: Announcement[]; needsSetup: boolean; error?: string }> {
+export async function dbGetAnnouncements(localBackup?: Announcement[]): Promise<{ data: Announcement[]; needsSetup: boolean; error?: string }> {
   try {
     const { data, error } = await supabase
       .from('announcements')
@@ -288,9 +289,10 @@ export async function dbGetAnnouncements(): Promise<{ data: Announcement[]; need
 
     if (!data || data.length === 0) {
       console.log('Bảng announcements trống, tự động seed dữ liệu...');
-      const { error: seedError } = await supabase.from('announcements').insert(INITIAL_ANNOUNCEMENTS);
+      const seedSource = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_ANNOUNCEMENTS;
+      const { error: seedError } = await supabase.from('announcements').insert(seedSource);
       if (!seedError) {
-        return { data: INITIAL_ANNOUNCEMENTS, needsSetup: false };
+        return { data: seedSource, needsSetup: false };
       }
     }
 
@@ -343,7 +345,7 @@ export async function dbDeleteAnnouncement(id: string): Promise<boolean> {
 /**
  * 3. QUẢN LÝ LỜI TƯỞNG NHỚ (MEMORIES)
  */
-export async function dbGetMemories(): Promise<{ data: MemoryWall[]; needsSetup: boolean; error?: string }> {
+export async function dbGetMemories(localBackup?: MemoryWall[]): Promise<{ data: MemoryWall[]; needsSetup: boolean; error?: string }> {
   try {
     const { data, error } = await supabase
       .from('memories')
@@ -359,9 +361,10 @@ export async function dbGetMemories(): Promise<{ data: MemoryWall[]; needsSetup:
 
     if (!data || data.length === 0) {
       console.log('Bảng memories trống, tự động seed dữ liệu...');
-      const { error: seedError } = await supabase.from('memories').insert(INITIAL_MEMORIES);
+      const seedSource = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_MEMORIES;
+      const { error: seedError } = await supabase.from('memories').insert(seedSource);
       if (!seedError) {
-        return { data: INITIAL_MEMORIES, needsSetup: false };
+        return { data: seedSource, needsSetup: false };
       }
     }
 
@@ -386,7 +389,7 @@ export async function dbAddMemory(mem: MemoryWall): Promise<boolean> {
 /**
  * 4. QUẢN LÝ CẤU HÌNH HỆ THỐNG (SETTINGS)
  */
-export async function dbGetSettings(): Promise<{ data: Record<string, string>; needsSetup: boolean; error?: string }> {
+export async function dbGetSettings(localBackup?: Record<string, string>): Promise<{ data: Record<string, string>; needsSetup: boolean; error?: string }> {
   try {
     const { data, error } = await supabase
       .from('settings')
@@ -404,6 +407,31 @@ export async function dbGetSettings(): Promise<{ data: Record<string, string>; n
       data.forEach((item: any) => {
         settingsMap[item.key] = item.value;
       });
+    }
+
+    // Nếu có localBackup, hãy kiểm tra và bổ sung các cấu hình tùy chỉnh lên đám mây
+    if (localBackup && Object.keys(localBackup).length > 0) {
+      let hasNewOrChanged = false;
+      const promises: Promise<any>[] = [];
+
+      for (const [key, val] of Object.entries(localBackup)) {
+        const isDbDefault = !data || data.length <= 5; // Có khả năng vừa chạy SQL setup mặc định
+        const isDifferent = settingsMap[key] !== val;
+
+        if (!(key in settingsMap) || (isDifferent && isDbDefault)) {
+          hasNewOrChanged = true;
+          promises.push((async () => {
+            const { error: upsertErr } = await supabase.from('settings').upsert({ key, value: val });
+            if (upsertErr) throw upsertErr;
+          })());
+          settingsMap[key] = val;
+        }
+      }
+
+      if (hasNewOrChanged && promises.length > 0) {
+        console.log('Đang đồng bộ cấu hình tùy chỉnh từ trình duyệt lên Supabase...');
+        await Promise.all(promises);
+      }
     }
 
     return { data: settingsMap, needsSetup: false };
