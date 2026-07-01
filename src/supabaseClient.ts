@@ -235,6 +235,40 @@ export async function dbDeleteMember(id: string): Promise<boolean> {
   }
 }
 
+export async function dbSyncAllMembers(members: Member[]): Promise<boolean> {
+  try {
+    // Xóa tất cả các bản ghi cũ
+    const { error: deleteError } = await supabase
+      .from('members')
+      .delete()
+      .neq('id', 'dummy_id_never_exists');
+    if (deleteError) throw deleteError;
+
+    // Chuẩn bị payload đồng bộ
+    const payload = members.map(member => {
+      const dbMember = { ...member };
+      if (member.spouses && member.spouses.length > 0) {
+        dbMember.spouseName = member.spouses.map(s => s.name).join(' & ');
+        dbMember.spouseType = member.spouses[0].type || '';
+        (dbMember as any).spouses = JSON.stringify(member.spouses);
+      } else {
+        (dbMember as any).spouses = null;
+      }
+      return dbMember;
+    });
+
+    if (payload.length > 0) {
+      // Thêm toàn bộ danh sách mới vào database
+      const { error: insertError } = await supabase.from('members').insert(payload);
+      if (insertError) throw insertError;
+    }
+    return true;
+  } catch (err) {
+    console.error('Lỗi khi đồng bộ toàn bộ thành viên lên Supabase:', err);
+    return false;
+  }
+}
+
 /**
  * 2. QUẢN LÝ THÔNG BÁO (ANNOUNCEMENTS)
  */

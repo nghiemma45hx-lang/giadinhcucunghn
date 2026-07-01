@@ -12,7 +12,7 @@ import LoginModal from './components/LoginModal';
 import { Member, Announcement, MemoryWall, UserAccount } from './types';
 import { INITIAL_MEMBERS, INITIAL_ANNOUNCEMENTS, INITIAL_MEMORIES } from './initialData';
 import { 
-  dbGetMembers, dbAddMember, dbUpdateMember, dbDeleteMember,
+  dbGetMembers, dbAddMember, dbUpdateMember, dbDeleteMember, dbSyncAllMembers,
   dbGetAnnouncements, dbAddAnnouncement, dbUpdateAnnouncement, dbDeleteAnnouncement,
   dbGetMemories, dbAddMemory, dbGetSettings, dbSaveSetting, SUPABASE_SQL_SETUP 
 } from './supabaseClient';
@@ -238,6 +238,13 @@ export default function App() {
     setMembers(previous);
   };
 
+  const handleSyncMembers = async (customMembers?: Member[]): Promise<boolean> => {
+    if (supabaseNeedsSetup) {
+      return false;
+    }
+    return await dbSyncAllMembers(customMembers || members);
+  };
+
   // 4. Hàm xử lý CRUD Thông Báo kết nối Supabase
   const handleAddAnnouncement = async (newAnn: Announcement) => {
     setAnnouncements(prev => [newAnn, ...prev]);
@@ -413,6 +420,7 @@ export default function App() {
                 onClearAllMembers={handleClearAllMembers}
                 onUndoMembers={handleUndoMembers}
                 canUndoMembers={membersHistory.length > 0}
+                onSyncMembers={handleSyncMembers}
                 onAddAccount={handleAddAccount}
                 onUpdateAccount={handleUpdateAccount}
                 onDeleteAccount={handleDeleteAccount}

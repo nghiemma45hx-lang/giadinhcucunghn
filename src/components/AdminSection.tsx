@@ -27,6 +27,7 @@ interface AdminSectionProps {
   onClearAllMembers?: () => void;
   onUndoMembers?: () => void;
   canUndoMembers?: boolean;
+  onSyncMembers?: (customMembers?: Member[]) => Promise<boolean>;
   onAddAccount?: (acc: UserAccount) => void;
   onUpdateAccount?: (acc: UserAccount) => void;
   onDeleteAccount?: (id: string) => void;
@@ -51,6 +52,7 @@ export default function AdminSection({
   onClearAllMembers,
   onUndoMembers,
   canUndoMembers = false,
+  onSyncMembers,
   onAddAccount,
   onUpdateAccount,
   onDeleteAccount,
@@ -59,6 +61,8 @@ export default function AdminSection({
 }: AdminSectionProps) {
   // Tabs: members or announcements or accounts or settings
   const [activeTab, setActiveTab] = useState<'members' | 'announcements' | 'accounts' | 'settings'>('members');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const shouldSyncRef = useRef(false);
 
   // Trạng thái Form Thành Viên
   const [showMemberForm, setShowMemberForm] = useState(false);
@@ -935,12 +939,39 @@ export default function AdminSection({
 
     if (editingMemberId) {
       onUpdateMember(mData);
-      showToast('Cập nhật thông tin thành viên thành công!');
+      if (shouldSyncRef.current && onSyncMembers) {
+        setIsSyncing(true);
+        const updatedMembers = members.map(m => m.id === mData.id ? mData : m);
+        onSyncMembers(updatedMembers).then(res => {
+          setIsSyncing(false);
+          if (res) {
+            showToast('Đã lưu cập nhật và đồng bộ lên đám mây thành công!');
+          } else {
+            showToast('Đã lưu cập nhật ở trình duyệt nhưng đồng bộ mây thất bại!', 'error');
+          }
+        });
+      } else {
+        showToast('Cập nhật thông tin thành viên thành công!');
+      }
     } else {
       onAddMember(mData);
-      showToast('Thêm mới thành viên thành công!');
+      if (shouldSyncRef.current && onSyncMembers) {
+        setIsSyncing(true);
+        const updatedMembers = [mData, ...members];
+        onSyncMembers(updatedMembers).then(res => {
+          setIsSyncing(false);
+          if (res) {
+            showToast('Đã thêm mới và đồng bộ lên đám mây thành công!');
+          } else {
+            showToast('Đã thêm ở trình duyệt nhưng đồng bộ mây thất bại!', 'error');
+          }
+        });
+      } else {
+        showToast('Thêm mới thành viên thành công!');
+      }
     }
 
+    shouldSyncRef.current = false;
     resetMemberForm();
   };
 
@@ -1451,6 +1482,27 @@ export default function AdminSection({
                   </button>
                 )}
 
+                {onSyncMembers && (
+                  <button
+                    onClick={async () => {
+                      setIsSyncing(true);
+                      const res = await onSyncMembers();
+                      setIsSyncing(false);
+                      if (res) {
+                        showToast("Đã đồng bộ toàn bộ danh sách thành viên lên đám mây thành công!");
+                      } else {
+                        showToast("Đồng bộ lên đám mây thất bại. Vui lòng kiểm tra lại kết nối!", "error");
+                      }
+                    }}
+                    disabled={isSyncing}
+                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-2 px-3.5 rounded text-xs border border-emerald-300 font-bold flex items-center gap-1.5 cursor-pointer focus:outline-none transition shadow-xs disabled:opacity-50"
+                    title="Đồng bộ thủ công toàn bộ danh sách thành viên hiện tại lên đám mây Supabase"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncing ? 'animate-spin' : ''}`} /> 
+                    {isSyncing ? 'Đang đồng bộ...' : 'Lưu Đồng Bộ Lên Mây'}
+                  </button>
+                )}
+
                 <button
                   onClick={() => { resetMemberForm(); setShowMemberForm(true); }}
                   className="bg-[#b8956b] hover:bg-[#8b7355] text-white py-2 px-4 rounded text-xs font-bold flex items-center gap-1 cursor-pointer focus:outline-none"
@@ -1923,6 +1975,18 @@ export default function AdminSection({
 
                 {/* Submit buttons */}
                 <div className="flex gap-2 justify-end pt-3">
+                  {onSyncMembers && (
+                    <button
+                      type="submit"
+                      onClick={() => { shouldSyncRef.current = true; }}
+                      disabled={isSyncing}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-5 rounded text-sm transition flex items-center gap-1.5 cursor-pointer focus:outline-none disabled:opacity-50"
+                      title="Lưu thông tin thành viên này và đồng bộ tức thời lên cơ sở dữ liệu đám mây Supabase"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 text-white ${isSyncing ? 'animate-spin' : ''}`} />
+                      {isSyncing ? 'Đang đồng bộ...' : editingMemberId ? 'Lưu & Đồng Bộ' : 'Thêm & Đồng Bộ'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={resetMemberForm}
