@@ -2265,7 +2265,7 @@ export default function AdminSection({
                     <input 
                       type="text" 
                       required
-                      disabled={editingAccId === 'admin' || editingAccId === 'user-phac'}
+                      disabled={editingAccId === 'admin'}
                       value={accUsername}
                       onChange={(e) => setAccUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
                       placeholder="Nhập tên đăng nhập viết liền không dấu (ví dụ: nghiemson)"
