@@ -66,11 +66,49 @@ export default function App() {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
 
-  // Danh sách tài khoản hệ thống dùng cho quản trị xem
-  const accounts: UserAccount[] = [
-    { id: 'admin', username: 'admin', fullName: 'Hội Đồng Gia Tộc (Admin)', role: 'admin' },
-    { id: 'user-phac', username: 'nghiemphac', fullName: 'Bác Nghiêm Phác', role: 'user' }
-  ];
+  // Danh sách tài khoản hệ thống dùng cho quản trị xem, lưu trữ ở localStorage
+  const [accounts, setAccounts] = useState<UserAccount[]>(() => {
+    const saved = localStorage.getItem('nghiem_accounts');
+    return saved ? JSON.parse(saved) : [
+      { id: 'admin', username: 'admin', fullName: 'Hội Đồng Gia Tộc (Admin)', role: 'admin', password: 'admin' },
+      { id: 'user-phac', username: 'nghiemphac', fullName: 'Bác Nghiêm Phác', role: 'user', password: '123' }
+    ];
+  });
+
+  const [accountsHistory, setAccountsHistory] = useState<UserAccount[][]>([]);
+
+  const setAccountsWithHistory = (newAccounts: UserAccount[] | ((prev: UserAccount[]) => UserAccount[])) => {
+    setAccounts(prev => {
+      const resolved = typeof newAccounts === 'function' ? newAccounts(prev) : newAccounts;
+      if (JSON.stringify(prev) !== JSON.stringify(resolved)) {
+        setAccountsHistory(h => [...h.slice(-19), prev]); // Lưu tối đa 20 trạng thái gần nhất
+      }
+      return resolved;
+    });
+  };
+
+  useEffect(() => {
+    localStorage.setItem('nghiem_accounts', JSON.stringify(accounts));
+  }, [accounts]);
+
+  const handleAddAccount = (newAcc: UserAccount) => {
+    setAccountsWithHistory(prev => [...prev, newAcc]);
+  };
+
+  const handleUpdateAccount = (updatedAcc: UserAccount) => {
+    setAccountsWithHistory(prev => prev.map(a => a.id === updatedAcc.id ? updatedAcc : a));
+  };
+
+  const handleDeleteAccount = (id: string) => {
+    setAccountsWithHistory(prev => prev.filter(a => a.id !== id));
+  };
+
+  const handleUndoAccounts = () => {
+    if (accountsHistory.length === 0) return;
+    const previous = accountsHistory[accountsHistory.length - 1];
+    setAccountsHistory(prev => prev.slice(0, prev.length - 1));
+    setAccounts(previous);
+  };
 
   // Tải dữ liệu từ Supabase trên mount
   const fetchSupabaseData = async () => {
@@ -375,6 +413,11 @@ export default function App() {
                 onClearAllMembers={handleClearAllMembers}
                 onUndoMembers={handleUndoMembers}
                 canUndoMembers={membersHistory.length > 0}
+                onAddAccount={handleAddAccount}
+                onUpdateAccount={handleUpdateAccount}
+                onDeleteAccount={handleDeleteAccount}
+                onUndoAccounts={handleUndoAccounts}
+                canUndoAccounts={accountsHistory.length > 0}
               />
             )}
           </motion.div>
@@ -384,6 +427,7 @@ export default function App() {
       {/* 5. MODALS & POPUPS */}
       {showLoginModal && (
         <LoginModal 
+          accounts={accounts}
           onClose={() => setShowLoginModal(false)}
           onLoginSuccess={(user) => {
             setCurrentUser(user);

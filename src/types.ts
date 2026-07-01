@@ -56,4 +56,5 @@ export interface UserAccount {
   username: string;
   fullName: string;
   role: 'admin' | 'user';
+  password?: string;
 }

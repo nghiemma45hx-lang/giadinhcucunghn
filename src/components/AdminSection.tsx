@@ -27,6 +27,11 @@ interface AdminSectionProps {
   onClearAllMembers?: () => void;
   onUndoMembers?: () => void;
   canUndoMembers?: boolean;
+  onAddAccount?: (acc: UserAccount) => void;
+  onUpdateAccount?: (acc: UserAccount) => void;
+  onDeleteAccount?: (id: string) => void;
+  onUndoAccounts?: () => void;
+  canUndoAccounts?: boolean;
 }
 
 export default function AdminSection({
@@ -45,7 +50,12 @@ export default function AdminSection({
   setEditingMemberId,
   onClearAllMembers,
   onUndoMembers,
-  canUndoMembers = false
+  canUndoMembers = false,
+  onAddAccount,
+  onUpdateAccount,
+  onDeleteAccount,
+  onUndoAccounts,
+  canUndoAccounts = false
 }: AdminSectionProps) {
   // Tabs: members or announcements or accounts or settings
   const [activeTab, setActiveTab] = useState<'members' | 'announcements' | 'accounts' | 'settings'>('members');
@@ -1259,6 +1269,83 @@ export default function AdminSection({
     XLSX.writeFile(wb, 'Mau_Dang_Ky_Thanh_Vien_Nghiem_Gia.xlsx');
   };
 
+  // Local state for account management form
+  const [showAccForm, setShowAccForm] = useState(false);
+  const [editingAccId, setEditingAccId] = useState<string | null>(null);
+  const [accFullName, setAccFullName] = useState('');
+  const [accUsername, setAccUsername] = useState('');
+  const [accPassword, setAccPassword] = useState('');
+  const [accRole, setAccRole] = useState<'admin' | 'user'>('user');
+
+  const resetAccForm = () => {
+    setEditingAccId(null);
+    setAccFullName('');
+    setAccUsername('');
+    setAccPassword('');
+    setAccRole('user');
+    setShowAccForm(false);
+  };
+
+  const handleAccSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accFullName.trim() || !accUsername.trim() || !accPassword.trim()) {
+      showToast('Vui lòng điền đầy đủ tất cả các trường dữ liệu!', 'error');
+      return;
+    }
+
+    if (editingAccId) {
+      // Cập nhật tài khoản
+      const updatedAcc: UserAccount = {
+        id: editingAccId,
+        fullName: accFullName.trim(),
+        username: accUsername.trim(),
+        password: accPassword.trim(),
+        role: accRole
+      };
+      onUpdateAccount?.(updatedAcc);
+      showToast('Cập nhật tài khoản thành công!');
+    } else {
+      // Check if username already exists
+      const usernameExists = accounts.some(acc => acc.username.toLowerCase() === accUsername.trim().toLowerCase());
+      if (usernameExists) {
+        showToast('Tên đăng nhập này đã tồn tại! Vui lòng chọn tên khác.', 'error');
+        return;
+      }
+
+      // Thêm mới tài khoản
+      const newAcc: UserAccount = {
+        id: `acc-${Date.now()}`,
+        fullName: accFullName.trim(),
+        username: accUsername.trim(),
+        password: accPassword.trim(),
+        role: accRole
+      };
+      onAddAccount?.(newAcc);
+      showToast('Thêm mới tài khoản thành công!');
+    }
+    resetAccForm();
+  };
+
+  const handleEditAccClick = (acc: UserAccount) => {
+    setEditingAccId(acc.id);
+    setAccFullName(acc.fullName);
+    setAccUsername(acc.username);
+    setAccPassword(acc.password || (acc.id === 'admin' ? 'admin' : acc.id === 'user-phac' ? '123' : ''));
+    setAccRole(acc.role);
+    setShowAccForm(true);
+  };
+
+  const handleDeleteAccClick = (id: string, name: string) => {
+    if (id === 'admin') {
+      showToast('Không thể xóa tài khoản Quản trị viên tối cao (admin)!', 'error');
+      return;
+    }
+    if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản "${name}"? Thao tác này có thể hoàn tác ngay sau đó.`)) {
+      onDeleteAccount?.(id);
+      showToast(`Đã xóa tài khoản "${name}" thành công!`);
+    }
+  };
+
   return (
     <div id="admin-view" className="w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       
@@ -2101,45 +2188,183 @@ export default function AdminSection({
 
       {/* 3. TAB: TÀI KHOẢN HỆ THỐNG */}
       {activeTab === 'accounts' && (
-        <div className="bg-white rounded-lg border border-[#eadecb] p-6 shadow-xs">
-          <h3 className="text-lg font-bold text-[#6b4724] font-playfair mb-4 border-b border-dashed border-[#eadecb] pb-2 flex justify-between items-center">
-            Danh Sách Tài Khoản Được Phân Quyền
-            <span className="text-xs font-normal bg-[#eadecb] text-[#4a3219] px-2.5 py-0.5 rounded-full font-mono">
-              Sĩ số: {accounts.length}
-            </span>
-          </h3>
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* Nút tác vụ và Thống kê */}
+          {!showAccForm && (
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg border border-[#eadecb] gap-3">
+              <span className="text-xs font-semibold text-[#8b7355]">
+                Đang có <strong className="text-[#6b4724] font-mono">{accounts.length}</strong> tài khoản được phân quyền truy cập hệ thống
+              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {onUndoAccounts && canUndoAccounts && (
+                  <button
+                    onClick={() => {
+                      onUndoAccounts();
+                      showToast("Hoàn tác thao tác quản lý tài khoản thành công!");
+                    }}
+                    className="bg-[#faf8f2] hover:bg-[#eadecb] text-[#6b4724] py-2 px-3.5 rounded text-xs border border-[#d6b583] font-bold flex items-center gap-1.5 cursor-pointer focus:outline-none transition shadow-xs"
+                    title="Hoàn tác thao tác vừa thực hiện trên tài khoản"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-[#b8956b] animate-spin-reverse" /> Hoàn Tác
+                  </button>
+                )}
+                <button
+                  onClick={() => { resetAccForm(); setShowAccForm(true); }}
+                  className="bg-[#b8956b] hover:bg-[#8b7355] text-white py-2 px-4 rounded text-xs font-bold flex items-center gap-1 cursor-pointer focus:outline-none"
+                >
+                  <Plus className="w-4 h-4" /> Thêm Tài Khoản Mới
+                </button>
+              </div>
+            </div>
+          )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-[#f4ecd8] text-[#6b4724] border-b-2 border-[#d6b583] font-bold">
-                  <th className="p-3.5">Họ và Tên Tài Khoản</th>
-                  <th className="p-3.5">Tên Đăng Nhập</th>
-                  <th className="p-3.5">Vai Trò / Phân Quyền</th>
-                  <th className="p-3.5">Tình trạng phiên</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#faf5eb]">
-                {accounts.map(acc => (
-                  <tr key={acc.id} className="hover:bg-[#faf8f2]">
-                    <td className="p-3.5 font-bold text-[#6b4724]">{acc.fullName}</td>
-                    <td className="p-3.5 font-mono text-sm font-semibold text-gray-500">{acc.username}</td>
-                    <td className="p-3.5">
-                      <span className={`px-2.5 py-0.5 rounded font-bold text-[10px] ${
-                        acc.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {acc.role === 'admin' ? 'Hội Đồng Gia Tộc (Admin)' : 'Thành Viên Đọc (User)'}
-                      </span>
-                    </td>
-                    <td className="p-3.5">
-                      <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-700">
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Đang hoạt động
-                      </span>
-                    </td>
+          {/* Form Thêm/Sửa Tài Khoản */}
+          {showAccForm && (
+            <div className="bg-[#faf8f2] rounded-lg border-2 border-[#b8956b] p-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center border-b border-[#eadecb] pb-3 mb-5">
+                <h3 className="text-lg font-bold text-[#6b4724] font-playfair flex items-center gap-1.5">
+                  <KeyRound className="w-5 h-5 text-[#b8956b]" />
+                  {editingAccId ? 'Cập Nhật Tài Khoản Được Phân Quyền' : 'Thêm Tài Khoản Truy Cập Mới'}
+                </h3>
+                <button 
+                  type="button"
+                  onClick={resetAccForm}
+                  className="text-gray-400 hover:text-[#6b4724] p-1.5 focus:outline-none cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAccSubmit} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Họ và Tên Người Dùng *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={accFullName}
+                      onChange={(e) => setAccFullName(e.target.value)}
+                      placeholder="Nhập tên thật (ví dụ: Bác Nghiêm Sơn)"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none focus:ring-1 focus:ring-[#b8956b]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Vai Trò / Phân Quyền *</label>
+                    <select
+                      value={accRole}
+                      onChange={(e) => setAccRole(e.target.value as 'admin' | 'user')}
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                    >
+                      <option value="user">Thành Viên Đọc (User) - Chỉ xem Gia phả</option>
+                      <option value="admin">Hội Đồng Gia Tộc (Admin) - Toàn quyền quản trị</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Tên Đăng Nhập (Username) *</label>
+                    <input 
+                      type="text" 
+                      required
+                      disabled={editingAccId === 'admin' || editingAccId === 'user-phac'}
+                      value={accUsername}
+                      onChange={(e) => setAccUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                      placeholder="Nhập tên đăng nhập viết liền không dấu (ví dụ: nghiemson)"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Mật Khẩu Truy Cập *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={accPassword}
+                      onChange={(e) => setAccPassword(e.target.value)}
+                      placeholder="Nhập mật khẩu truy cập"
+                      className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end pt-3">
+                  <button
+                    type="button"
+                    onClick={resetAccForm}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-5 rounded text-sm transition cursor-pointer"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-[#b8956b] hover:bg-[#8b7355] text-white font-bold py-2 px-6 rounded text-sm transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" /> {editingAccId ? 'Lưu cập nhật' : 'Tạo tài khoản'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* BẢNG LIỆT KÊ DANH SÁCH TÀI KHOẢN */}
+          <div className="bg-white rounded-lg border border-[#eadecb] overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#f4ecd8] text-[#6b4724] border-b-2 border-[#d6b583] font-bold">
+                    <th className="p-3.5">Họ và Tên Tài Khoản</th>
+                    <th className="p-3.5">Tên Đăng Nhập</th>
+                    <th className="p-3.5">Vai Trò / Phân Quyền</th>
+                    <th className="p-3.5">Mật Khẩu</th>
+                    <th className="p-3.5">Tình trạng phiên</th>
+                    <th className="p-3.5 text-right">Chức Năng</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#faf5eb]">
+                  {accounts.map(acc => {
+                    const displayPassword = acc.password || (acc.id === 'admin' ? 'admin' : acc.id === 'user-phac' ? '123' : '(chưa đặt)');
+                    return (
+                      <tr key={acc.id} className="hover:bg-[#faf8f2] transition duration-150">
+                        <td className="p-3.5 font-bold text-[#6b4724]">{acc.fullName}</td>
+                        <td className="p-3.5 font-mono text-sm font-semibold text-gray-500">{acc.username}</td>
+                        <td className="p-3.5">
+                          <span className={`px-2.5 py-0.5 rounded font-bold text-[10px] ${
+                            acc.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {acc.role === 'admin' ? 'Hội Đồng Gia Tộc (Admin)' : 'Thành Viên Đọc (User)'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-mono text-xs text-amber-800 font-semibold">{displayPassword}</td>
+                        <td className="p-3.5">
+                          <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-700">
+                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Đang hoạt động
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right flex justify-end gap-1">
+                          <button
+                            onClick={() => handleEditAccClick(acc)}
+                            className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white p-1.5 rounded transition cursor-pointer border border-blue-200"
+                            title="Sửa thông tin tài khoản"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAccClick(acc.id, acc.fullName)}
+                            disabled={acc.id === 'admin'}
+                            className={`p-1.5 rounded transition border focus:outline-none ${
+                              acc.id === 'admin'
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                : 'bg-red-50 hover:bg-red-600 text-red-700 hover:text-white border-red-200 cursor-pointer'
+                            }`}
+                            title={acc.id === 'admin' ? 'Không thể xóa tài khoản hệ thống mặc định' : 'Xóa tài khoản này'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

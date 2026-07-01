@@ -3,11 +3,12 @@ import { TreePine, X, Eye, EyeOff, AlertCircle, ShieldAlert } from 'lucide-react
 import { UserAccount } from '../types';
 
 interface LoginModalProps {
+  accounts?: UserAccount[];
   onClose: () => void;
   onLoginSuccess: (user: UserAccount) => void;
 }
 
-export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps) {
+export default function LoginModal({ accounts = [], onClose, onLoginSuccess }: LoginModalProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -20,25 +21,16 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
       return;
     }
 
-    // Xác thực tài khoản: admin/admin như người dùng yêu cầu
-    if (username.trim().toLowerCase() === 'admin' && password.trim() === 'admin') {
-      const adminUser: UserAccount = {
-        id: 'admin',
-        username: 'admin',
-        fullName: 'Hội Đồng Gia Tộc (Admin)',
-        role: 'admin'
-      };
-      onLoginSuccess(adminUser);
-      onClose();
-    } else if (username.trim().toLowerCase() === 'nghiemphac' && password.trim() === '123') {
-      // Cho phép thêm tài khoản user để phong phú
-      const standardUser: UserAccount = {
-        id: 'user-phac',
-        username: 'nghiemphac',
-        fullName: 'Bác Nghiêm Phác',
-        role: 'user'
-      };
-      onLoginSuccess(standardUser);
+    // Tìm tài khoản phù hợp trong danh sách động
+    const matchedAccount = accounts.find(
+      acc => acc.username.trim().toLowerCase() === username.trim().toLowerCase() && 
+             (acc.password === password.trim() || 
+              (acc.id === 'admin' && username.trim().toLowerCase() === 'admin' && password.trim() === 'admin') ||
+              (acc.id === 'user-phac' && username.trim().toLowerCase() === 'nghiemphac' && password.trim() === '123'))
+    );
+
+    if (matchedAccount) {
+      onLoginSuccess(matchedAccount);
       onClose();
     } else {
       setErrorMsg('Tên đăng nhập hoặc mật khẩu quản trị không chính xác.');
