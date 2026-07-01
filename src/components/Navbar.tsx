@@ -134,60 +134,67 @@ export default function Navbar({
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="xl:hidden bg-[#5c3e21] border-t border-[#4a3219] px-2 pt-2 pb-4 space-y-1">
-          {navItems.map(item => {
-            const Icon = item.icon;
-            const isActive = currentView === item.id;
-            return (
+        <div className="xl:hidden bg-[#5c3e21] border-t border-[#4a3219] px-4 py-3 space-y-3">
+          <div className="flex flex-row flex-wrap items-center gap-2 bg-[#4a3219]/40 p-2 rounded-lg border border-[#4a3219]">
+            {navItems.map(item => {
+              const Icon = item.icon;
+              const isActive = currentView === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 focus:outline-none cursor-pointer ${
+                    isActive 
+                      ? 'bg-[#4a3219] text-[#eadecb] border-b-2 border-[#d6b583]' 
+                      : 'hover:bg-[#4a3219] hover:text-white text-[#fdfbf7]'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-[#d6b583]" />
+                  {item.label}
+                </button>
+              );
+            })}
+            
+            {currentUser && currentUser.role === 'admin' && (
               <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-md text-base font-medium transition flex items-center gap-2.5 ${
-                  isActive 
-                    ? 'bg-[#4a3219] text-[#eadecb] border-l-4 border-[#d6b583]' 
-                    : 'text-white hover:bg-[#4a3219]'
+                onClick={() => handleNavClick('admin')}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 focus:outline-none cursor-pointer ${
+                  currentView === 'admin'
+                    ? 'bg-[#4a3219] text-[#eadecb] border-b-2 border-[#d6b583]'
+                    : 'hover:bg-[#4a3219] hover:text-white text-[#fdfbf7]'
                 }`}
               >
-                <Icon className="w-5 h-5 text-[#d6b583]" />
-                {item.label}
+                <ShieldAlert className="w-4 h-4 text-[#d6b583]" />
+                Quản trị hệ thống
               </button>
-            );
-          })}
-          
-          {currentUser && currentUser.role === 'admin' && (
-            <button
-              onClick={() => handleNavClick('admin')}
-              className={`w-full text-left px-3 py-2.5 rounded-md text-base font-medium transition flex items-center gap-2.5 ${
-                currentView === 'admin'
-                  ? 'bg-[#4a3219] text-[#eadecb] border-l-4 border-[#d6b583]'
-                  : 'text-white hover:bg-[#4a3219]'
-              }`}
-            >
-              <ShieldAlert className="w-5 h-5 text-[#d6b583]" />
-              Quản trị hệ thống
-            </button>
-          )}
+            )}
+          </div>
 
-          <div className="pt-4 pb-2 border-t border-[#4a3219] mt-3">
+          <div className="pt-3 border-t border-[#4a3219] flex justify-between items-center flex-wrap gap-2">
             {currentUser ? (
-              <button
-                onClick={() => {
-                  onLogout();
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full text-center px-4 py-2.5 rounded-md text-sm font-bold bg-red-800 text-white hover:bg-red-700 transition flex items-center justify-center gap-1.5"
-              >
-                <LogOut className="w-4 h-4" /> Đăng xuất
-              </button>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-medium text-[#d6b583] bg-[#4a3219] py-1 px-3 rounded">
+                  Xin chào, <strong className="text-white">{currentUser.fullName}</strong>
+                </span>
+                <button
+                  onClick={() => {
+                    onLogout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="px-3 py-1.5 rounded text-xs font-bold bg-red-800 text-white hover:bg-red-700 transition flex items-center gap-1 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Đăng xuất
+                </button>
+              </div>
             ) : (
               <button
                 onClick={() => {
                   onLoginShow();
                   setMobileMenuOpen(false);
                 }}
-                className="w-full text-center px-4 py-2.5 rounded-md text-sm font-bold bg-[#d6b583] text-[#4a3219] hover:bg-[#c29f6b] transition flex items-center justify-center gap-1.5"
+                className="px-4 py-2 rounded text-xs font-bold bg-[#d6b583] text-[#4a3219] hover:bg-[#c29f6b] transition flex items-center gap-1 cursor-pointer"
               >
-                <LogIn className="w-4 h-4" /> Đăng nhập quản trị
+                <LogIn className="w-3.5 h-3.5" /> Đăng nhập quản trị
               </button>
             )}
           </div>
