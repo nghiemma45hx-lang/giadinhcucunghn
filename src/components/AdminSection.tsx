@@ -6,7 +6,7 @@ import {
   FileText, FileSpreadsheet, Upload
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { parseAndCalculateAges } from '../utils/lunarConverter';
+import { parseAndCalculateAges, convertSolarToLunar } from '../utils/lunarConverter';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 
@@ -68,6 +68,7 @@ export default function AdminSection({
   const [story, setStory] = useState('');
   const [education, setEducation] = useState('');
   const [job, setJob] = useState('');
+  const [lunarConversionNotice, setLunarConversionNotice] = useState('');
 
   // Trạng thái Form Thông Báo
   const [showAnnForm, setShowAnnForm] = useState(false);
@@ -664,8 +665,86 @@ export default function AdminSection({
     setEducation(member.education || '');
     setJob(member.job || '');
     
+    // Tự động kiểm tra quy đổi ngày âm lịch khi mở sửa thành viên đã mất
+    if (member.deathDate) {
+      let d = 0, m = 0, y = 0;
+      let matched = false;
+      const val = member.deathDate;
+      const ymdMatch = val.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+      if (ymdMatch) {
+        y = parseInt(ymdMatch[1], 10);
+        m = parseInt(ymdMatch[2], 10);
+        d = parseInt(ymdMatch[3], 10);
+        matched = true;
+      } else {
+        const dmyMatch = val.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+        if (dmyMatch) {
+          d = parseInt(dmyMatch[1], 10);
+          m = parseInt(dmyMatch[2], 10);
+          y = parseInt(dmyMatch[3], 10);
+          matched = true;
+        }
+      }
+      if (matched && y >= 1900 && y <= 2030 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        const lunar = convertSolarToLunar(d, m, y);
+        if (lunar) {
+          setLunarConversionNotice(`Quy đổi thành công: ngày giỗ Âm lịch rơi vào ngày ${lunar.lunarDay} tháng ${lunar.lunarMonth} âm lịch (Năm ${lunar.canChiYear})`);
+        } else {
+          setLunarConversionNotice('');
+        }
+      } else {
+        setLunarConversionNotice('');
+      }
+    } else {
+      setLunarConversionNotice('');
+    }
+    
     setEditingMemberId(member.id);
     setShowMemberForm(true);
+  };
+
+  // Tự động tính ngày âm lịch từ ngày dương lịch khi nhập/chọn ngày mất
+  const handleDeathDateChange = (val: string) => {
+    setDeathDate(val);
+    
+    if (!val) {
+      setLunarConversionNotice('');
+      return;
+    }
+    
+    let day = 0, month = 0, year = 0;
+    let matched = false;
+    
+    // Thử YYYY-MM-DD
+    const ymdMatch = val.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (ymdMatch) {
+      year = parseInt(ymdMatch[1], 10);
+      month = parseInt(ymdMatch[2], 10);
+      day = parseInt(ymdMatch[3], 10);
+      matched = true;
+    } else {
+      // Thử DD-MM-YYYY hoặc DD/MM/YYYY
+      const dmyMatch = val.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+      if (dmyMatch) {
+        day = parseInt(dmyMatch[1], 10);
+        month = parseInt(dmyMatch[2], 10);
+        year = parseInt(dmyMatch[3], 10);
+        matched = true;
+      }
+    }
+    
+    if (matched && year >= 1900 && year <= 2030 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const lunar = convertSolarToLunar(day, month, year);
+      if (lunar) {
+        const formattedAnniversary = `${lunar.lunarDay < 10 ? '0' + lunar.lunarDay : lunar.lunarDay} tháng ${lunar.lunarMonth < 10 ? '0' + lunar.lunarMonth : lunar.lunarMonth}`;
+        setDeathAnniversaryLunar(formattedAnniversary);
+        setLunarConversionNotice(`Quy đổi thành công: ngày giỗ Âm lịch rơi vào ngày ${lunar.lunarDay} tháng ${lunar.lunarMonth} âm lịch (Năm ${lunar.canChiYear})`);
+      } else {
+        setLunarConversionNotice('');
+      }
+    } else {
+      setLunarConversionNotice('');
+    }
   };
 
   // Reset form thành viên
@@ -690,6 +769,7 @@ export default function AdminSection({
     setStory('');
     setEducation('');
     setJob('');
+    setLunarConversionNotice('');
     
     setEditingMemberId(null);
     setShowMemberForm(false);
@@ -936,12 +1016,12 @@ export default function AdminSection({
     URL.revokeObjectURL(url);
   };
 
-  // Tải biểu mẫu Excel (.csv với UTF-8 BOM hỗ trợ tiếng Việt hoàn hảo)
+  // Tải biểu mẫu Excel (.xlsx chính xác, chất lượng cao không lỗi bảng)
   const downloadExcelTemplate = () => {
     const excelData = [
-      ['DANH SÁCH ĐĂNG KÝ THÀNH VIÊN GIA PHẢ - NGHIÊM GIA'],
-      ['Hướng dẫn: Hãy điền thông tin của các thành viên dòng họ vào bảng dưới đây theo mẫu để Hội đồng gia tộc cập nhật.'],
-      [''],
+      ['DANH SÁCH ĐĂNG KÝ THÀNH VIÊN GIA PHẢ - NGHIÊM GIA', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['Hướng dẫn: Hãy điền thông tin của các thành viên dòng họ vào bảng dưới đây theo mẫu để Hội đồng gia tộc cập nhật.', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
       [
         'Họ và Tên (*)',
         'Thế Hệ (*)',
@@ -1024,16 +1104,33 @@ export default function AdminSection({
       ]
     ];
 
-    const csvContent = excelData.map(e => e.map(val => `"${(val || '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'Mau_Dang_Ky_Thanh_Vien_Nghiem_Gia.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    
+    // Set auto widths or fixed generous widths
+    ws['!cols'] = [
+      { wch: 22 }, // Họ và Tên
+      { wch: 10 }, // Thế Hệ
+      { wch: 12 }, // Giới Tính
+      { wch: 12 }, // Tình Trạng
+      { wch: 22 }, // Họ tên Cha
+      { wch: 12 }, // Chi/Ngành
+      { wch: 18 }, // Vai Vế Với Tổ
+      { wch: 20 }, // Năm Sinh (Dương lịch)
+      { wch: 22 }, // Bạn đời
+      { wch: 18 }, // Bên ngoại tộc
+      { wch: 15 }, // Số điện thoại
+      { wch: 15 }, // Nghề nghiệp
+      { wch: 18 }, // Học vấn
+      { wch: 20 }, // Năm Mất (Dương lịch)
+      { wch: 18 }, // Ngày Giỗ Âm Lịch
+      { wch: 25 }, // Nơi An Táng
+      { wch: 30 }, // Nơi Sinh / Quê Quán
+      { wch: 40 }  // Tiểu Sử Cuộc Đời
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Mau_Nghiem_Gia');
+    XLSX.writeFile(wb, 'Mau_Dang_Ky_Thanh_Vien_Nghiem_Gia.xlsx');
   };
 
   return (
@@ -1180,10 +1277,10 @@ export default function AdminSection({
                   <button
                     type="button"
                     onClick={downloadExcelTemplate}
-                    title="Tải biểu mẫu Excel (.csv)"
+                    title="Tải biểu mẫu Excel (.xlsx) chuẩn chỉnh không lỗi bảng"
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition text-[10px] font-bold focus:outline-none cursor-pointer"
                   >
-                    <FileSpreadsheet className="w-3.5 h-3.5" /> Biểu mẫu Excel (.csv)
+                    <FileSpreadsheet className="w-3.5 h-3.5" /> Biểu mẫu Excel (.xlsx)
                   </button>
                   <button 
                     type="button"
@@ -1436,24 +1533,50 @@ export default function AdminSection({
                     className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-amber-50/50 p-4 rounded border border-amber-100"
                   >
                     <div>
-                      <label className="block text-amber-900 font-bold mb-1">Năm Mất (Dương lịch)</label>
-                      <input 
-                        type="text" 
-                        value={deathDate}
-                        onChange={(e) => setDeathDate(e.target.value)}
-                        placeholder="ví dụ: 2021"
-                        className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
-                      />
+                      <label className="block text-amber-900 font-bold mb-1 flex justify-between items-center">
+                        <span>Ngày/Năm Mất (Dương lịch)</span>
+                        <span className="text-[10px] text-amber-700 font-normal italic">Chọn lịch hoặc nhập tay</span>
+                      </label>
+                      <div className="flex gap-1">
+                        <input 
+                          type="text" 
+                          value={deathDate}
+                          onChange={(e) => handleDeathDateChange(e.target.value)}
+                          placeholder="ví dụ: 15-08-2021 hoặc 2021"
+                          className="flex-1 p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
+                        />
+                        <input
+                          type="date"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              const formatted = `${d}-${m}-${y}`;
+                              handleDeathDateChange(formatted);
+                            }
+                          }}
+                          className="p-1.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none w-10 cursor-pointer"
+                          title="Chọn từ lịch Dương lịch"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-amber-900 font-bold mb-1">Ngày Giỗ Âm Lịch (Bắt buộc) *</label>
                       <input 
                         type="text" 
                         value={deathAnniversaryLunar}
-                        onChange={(e) => setDeathAnniversaryLunar(e.target.value)}
+                        onChange={(e) => {
+                          setDeathAnniversaryLunar(e.target.value);
+                          setLunarConversionNotice('');
+                        }}
                         placeholder="ví dụ: 12 tháng 3 hoặc 02 tháng 9"
                         className="w-full p-2.5 border border-[#d6b583] rounded bg-white text-sm focus:outline-none"
                       />
+                      {lunarConversionNotice && (
+                        <div className="mt-1 text-[11px] text-green-700 bg-green-50 border border-green-200 rounded p-1.5 font-semibold flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                          <span>{lunarConversionNotice}</span>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-amber-900 font-bold mb-1">Nơi An Táng (Mộ phần)</label>
