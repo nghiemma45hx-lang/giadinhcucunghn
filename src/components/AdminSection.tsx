@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { parseAndCalculateAges } from '../utils/lunarConverter';
+import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
 
 interface AdminSectionProps {
   members: Member[];
@@ -80,11 +82,199 @@ export default function AdminSection({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const importMembersFromCSV = (text: string) => {
+  // Hàm tải thư viện PDF.js từ CDN động
+  const loadPdfJs = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).pdfjsLib) {
+        resolve((window as any).pdfjsLib);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload = () => {
+        const pdfjsLib = (window as any).pdfjsLib;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve(pdfjsLib);
+      };
+      script.onerror = (e) => reject(e);
+      document.head.appendChild(script);
+    });
+  };
+
+  const parsePdfFile = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    const pdfjsLib = await loadPdfJs();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    
+    let fullText = '';
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      fullText += pageText + '\n';
+    }
+    return fullText;
+  };
+
+  const parsePdfText = (text: string) => {
+    const getValueForLabel = (labels: string[]) => {
+      for (const label of labels) {
+        const escapedLabel = label.replace(/[\/\(\)\*\-\+]/g, '\\$&');
+        const regex = new RegExp(`${escapedLabel}\\s*\\(?.*?\\)?\\s*:\\s*([^\\n\\r]+)`, 'i');
+        const match = text.match(regex);
+        if (match && match[1]) {
+          const val = match[1].replace(/\.{2,}/g, '').trim();
+          if (val && !val.startsWith('..') && !val.includes('ví dụ:')) {
+            return val;
+          }
+        }
+      }
+      return '';
+    };
+
+    const fullName = getValueForLabel(['Họ và tên thành viên', 'Họ và tên', 'ho va ten', 'ho ten']);
+    if (!fullName) return null;
+
+    const genRaw = getValueForLabel(['Thế hệ', 'Đời thứ']);
+    const genMatch = genRaw.match(/\d+/);
+    const generationVal = genMatch ? parseInt(genMatch[0], 10) : 18;
+
+    const genderRaw = getValueForLabel(['Giới tính']).toLowerCase();
+    const genderVal: 'Nam' | 'Nữ' = (genderRaw.includes('nữ') || genderRaw.includes('nu') || genderRaw.includes('[x] nữ')) ? 'Nữ' : 'Nam';
+
+    const statusRaw = getValueForLabel(['Tình trạng']).toLowerCase();
+    const isDeceasedVal = statusRaw.includes('đã mất') || statusRaw.includes('da mat') || statusRaw.includes('kính tế') || statusRaw.includes('deceased') || statusRaw.includes('[x] đã mất');
+
+    const chiBranchVal = getValueForLabel(['Chi / Ngành trực thuộc', 'Chi / Ngành', 'Chi/Ngành']) || 'Chi Cả';
+    const relationshipToHeadVal = getValueForLabel(['Mối quan hệ với Tổ', 'Mối quan hệ']) || undefined;
+    const birthDateVal = getValueForLabel(['Năm sinh', 'Ngày sinh']) || undefined;
+    const parentRaw = getValueForLabel(['Cấp Trên Trong Họ', 'Họ tên Cha']);
+    const spouseNameVal = getValueForLabel(['Họ tên Bạn đời', 'Bạn đời', 'Vợ/Chồng']) || undefined;
+    const spouseTypeVal = getValueForLabel(['Bầu đoàn', 'Phân loại bạn đời']) || undefined;
+    const contactVal = getValueForLabel(['Số điện thoại']) || undefined;
+    const jobVal = getValueForLabel(['Nghề nghiệp']) || undefined;
+    const educationVal = getValueForLabel(['Trình độ học vấn', 'Học vấn']) || undefined;
+    const deathDateVal = getValueForLabel(['Năm mất']) || undefined;
+    const deathAnniversaryLunarVal = getValueForLabel(['Ngày giỗ âm lịch', 'Ngày giỗ']) || undefined;
+    const restingPlaceVal = getValueForLabel(['Nơi an táng', 'Mộ phần']) || undefined;
+    const birthPlaceVal = getValueForLabel(['Nơi sinh / Quê quán', 'Quê quán']) || undefined;
+    const storyVal = getValueForLabel(['Tiểu sử cuộc đời', 'Tiểu sử']) || undefined;
+
+    return {
+      fullName,
+      generationVal,
+      genderVal,
+      isDeceasedVal,
+      chiBranchVal,
+      relationshipToHeadVal,
+      birthDateVal,
+      parentRaw,
+      spouseNameVal,
+      spouseTypeVal,
+      contactVal,
+      jobVal,
+      educationVal,
+      deathDateVal,
+      deathAnniversaryLunarVal,
+      restingPlaceVal,
+      birthPlaceVal,
+      storyVal
+    };
+  };
+
+  const parseWordDocument = (htmlContent: string) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
+    
+    const tds = Array.from(doc.querySelectorAll('td'));
+    const getValueForLabel = (labels: string[]) => {
+      for (let i = 0; i < tds.length; i++) {
+        const text = tds[i].textContent || '';
+        const match = labels.some(label => text.toLowerCase().includes(label.toLowerCase()));
+        if (match) {
+          const nextTd = tds[i + 1];
+          if (nextTd) {
+            const val = nextTd.textContent || '';
+            const cleanVal = val.replace(/\.{2,}/g, '').trim();
+            if (cleanVal && !cleanVal.includes('ví dụ:')) {
+              return cleanVal;
+            }
+          }
+        }
+      }
+      
+      const paragraphs = Array.from(doc.querySelectorAll('p'));
+      for (const p of paragraphs) {
+        const text = p.textContent || '';
+        for (const label of labels) {
+          if (text.toLowerCase().includes(label.toLowerCase())) {
+            const parts = text.split(':');
+            if (parts.length > 1) {
+              const cleanVal = parts.slice(1).join(':').replace(/\.{2,}/g, '').trim();
+              if (cleanVal && !cleanVal.includes('ví dụ:')) {
+                return cleanVal;
+              }
+            }
+          }
+        }
+      }
+      return '';
+    };
+
+    const fullName = getValueForLabel(['Họ và tên thành viên', 'Họ và tên', 'Họ tên']);
+    if (!fullName) return null;
+
+    const genRaw = getValueForLabel(['Thế hệ', 'Đời thứ']);
+    const genMatch = genRaw.match(/\d+/);
+    const generationVal = genMatch ? parseInt(genMatch[0], 10) : 18;
+
+    const genderRaw = getValueForLabel(['Giới tính']).toLowerCase();
+    const genderVal: 'Nam' | 'Nữ' = (genderRaw.includes('nữ') || genderRaw.includes('nu') || genderRaw.includes('[x] nữ')) ? 'Nữ' : 'Nam';
+
+    const statusRaw = getValueForLabel(['Tình trạng']).toLowerCase();
+    const isDeceasedVal = statusRaw.includes('đã mất') || statusRaw.includes('da mat') || statusRaw.includes('kính tế') || statusRaw.includes('deceased') || statusRaw.includes('[x] đã mất');
+
+    const chiBranchVal = getValueForLabel(['Chi / Ngành', 'Chi/Ngành']) || 'Chi Cả';
+    const relationshipToHeadVal = getValueForLabel(['Mối quan hệ với Tổ', 'Mối quan hệ']) || undefined;
+    const birthDateVal = getValueForLabel(['Năm sinh', 'Ngày sinh']) || undefined;
+    const parentRaw = getValueForLabel(['Cấp Trên Trong Họ', 'Họ tên Cha']);
+    const spouseNameVal = getValueForLabel(['Họ tên Bạn đời', 'Bạn đời', 'Vợ/Chồng']) || undefined;
+    const spouseTypeVal = getValueForLabel(['Bầu đoàn', 'Phân loại bạn đời']) || undefined;
+    const contactVal = getValueForLabel(['Số điện thoại']) || undefined;
+    const jobVal = getValueForLabel(['Nghề nghiệp']) || undefined;
+    const educationVal = getValueForLabel(['Trình độ học vấn', 'Học vấn']) || undefined;
+    const deathDateVal = getValueForLabel(['Năm mất']) || undefined;
+    const deathAnniversaryLunarVal = getValueForLabel(['Ngày giỗ âm lịch', 'Ngày giỗ']) || undefined;
+    const restingPlaceVal = getValueForLabel(['Nơi an táng', 'Mộ phần']) || undefined;
+    const birthPlaceVal = getValueForLabel(['Nơi sinh / Quê quán', 'Quê quán']) || undefined;
+    const storyVal = getValueForLabel(['Tiểu sử']) || undefined;
+
+    return {
+      fullName,
+      generationVal,
+      genderVal,
+      isDeceasedVal,
+      chiBranchVal,
+      relationshipToHeadVal,
+      birthDateVal,
+      parentRaw,
+      spouseNameVal,
+      spouseTypeVal,
+      contactVal,
+      jobVal,
+      educationVal,
+      deathDateVal,
+      deathAnniversaryLunarVal,
+      restingPlaceVal,
+      birthPlaceVal,
+      storyVal
+    };
+  };
+
+  const importMembersFromRows = (rows: string[][], fileTypeName: string) => {
     try {
-      const rows = parseCSV(text);
       if (rows.length === 0) {
-        showToast('Tệp CSV rỗng hoặc không đúng định dạng.', 'error');
+        showToast(`Tệp ${fileTypeName} rỗng hoặc không đúng định dạng.`, 'error');
         return;
       }
 
@@ -93,7 +283,7 @@ export default function AdminSection({
       for (let r = 0; r < rows.length; r++) {
         const row = rows[r];
         const hasNameHeader = row.some(cell => {
-          const c = cell.toLowerCase().replace(/\s+/g, '');
+          const c = (cell || '').toLowerCase().replace(/\s+/g, '');
           return c.includes('họvàtên') || c.includes('họtên') || c === 'tên' || c.includes('fullname');
         });
         if (hasNameHeader) {
@@ -107,7 +297,7 @@ export default function AdminSection({
         return;
       }
 
-      const headers = rows[headerIdx].map(h => h.trim().toLowerCase());
+      const headers = rows[headerIdx].map(h => (h || '').trim().toLowerCase());
       const dataRows = rows.slice(headerIdx + 1);
 
       const getIndex = (aliases: string[]) => {
@@ -173,25 +363,25 @@ export default function AdminSection({
         const genRaw = idxGen !== -1 ? parseInt(row[idxGen], 10) : 18;
         const generationVal = isNaN(genRaw) ? 18 : genRaw;
 
-        const genderRaw = idxGender !== -1 ? row[idxGender].trim().toLowerCase() : 'nam';
+        const genderRaw = idxGender !== -1 ? (row[idxGender] || '').trim().toLowerCase() : 'nam';
         const genderVal: 'Nam' | 'Nữ' = (genderRaw.includes('nữ') || genderRaw.includes('nu') || genderRaw === 'f' || genderRaw === 'female') ? 'Nữ' : 'Nam';
 
-        const statusRaw = idxStatus !== -1 ? row[idxStatus].trim().toLowerCase() : '';
+        const statusRaw = idxStatus !== -1 ? (row[idxStatus] || '').trim().toLowerCase() : '';
         const isDeceasedVal = statusRaw.includes('mất') || statusRaw.includes('khuất') || statusRaw.includes('tế') || statusRaw.includes('qua đời') || statusRaw.includes('deceased') || statusRaw.includes('die') || statusRaw === 'mất';
 
-        const chiBranchVal = idxChi !== -1 ? row[idxChi].trim() : 'Chi Cả';
-        const relationshipToHeadVal = idxRel !== -1 ? row[idxRel].trim() : undefined;
-        const birthDateVal = idxBirth !== -1 ? row[idxBirth].trim() : undefined;
-        const spouseNameVal = idxSpouse !== -1 ? row[idxSpouse].trim() : undefined;
-        const spouseTypeVal = spouseNameVal && idxSpouseType !== -1 ? row[idxSpouseType].trim() : undefined;
-        const contactVal = idxContact !== -1 ? row[idxContact].trim() : undefined;
-        const jobVal = idxJob !== -1 ? row[idxJob].trim() : undefined;
-        const educationVal = idxEducation !== -1 ? row[idxEducation].trim() : undefined;
-        const deathDateVal = idxDeath !== -1 ? row[idxDeath].trim() : undefined;
-        const deathAnniversaryLunarVal = idxDeathLunar !== -1 ? row[idxDeathLunar].trim() : undefined;
-        const restingPlaceVal = idxResting !== -1 ? row[idxResting].trim() : undefined;
-        const birthPlaceVal = idxBirthPlace !== -1 ? row[idxBirthPlace].trim() : undefined;
-        const storyVal = idxStory !== -1 ? row[idxStory].trim() : undefined;
+        const chiBranchVal = idxChi !== -1 ? (row[idxChi] || '').trim() : 'Chi Cả';
+        const relationshipToHeadVal = (idxRel !== -1 && row[idxRel]) ? row[idxRel].trim() : undefined;
+        const birthDateVal = (idxBirth !== -1 && row[idxBirth]) ? row[idxBirth].trim() : undefined;
+        const spouseNameVal = (idxSpouse !== -1 && row[idxSpouse]) ? row[idxSpouse].trim() : undefined;
+        const spouseTypeVal = (spouseNameVal && idxSpouseType !== -1 && row[idxSpouseType]) ? row[idxSpouseType].trim() : undefined;
+        const contactVal = (idxContact !== -1 && row[idxContact]) ? row[idxContact].trim() : undefined;
+        const jobVal = (idxJob !== -1 && row[idxJob]) ? row[idxJob].trim() : undefined;
+        const educationVal = (idxEducation !== -1 && row[idxEducation]) ? row[idxEducation].trim() : undefined;
+        const deathDateVal = (idxDeath !== -1 && row[idxDeath]) ? row[idxDeath].trim() : undefined;
+        const deathAnniversaryLunarVal = (idxDeathLunar !== -1 && row[idxDeathLunar]) ? row[idxDeathLunar].trim() : undefined;
+        const restingPlaceVal = (idxResting !== -1 && row[idxResting]) ? row[idxResting].trim() : undefined;
+        const birthPlaceVal = (idxBirthPlace !== -1 && row[idxBirthPlace]) ? row[idxBirthPlace].trim() : undefined;
+        const storyVal = (idxStory !== -1 && row[idxStory]) ? row[idxStory].trim() : undefined;
 
         let parentIdVal: string | undefined = undefined;
         if (idxParent !== -1 && row[idxParent]) {
@@ -230,11 +420,16 @@ export default function AdminSection({
         onAddMember(mem);
       });
 
-      showToast(`Tải lên thành công! Đã thêm ${importedMembers.length} thành viên.`);
+      showToast(`Tải lên thành công! Đã thêm ${importedMembers.length} thành viên từ ${fileTypeName}.`);
     } catch (err) {
       console.error(err);
-      showToast('Lỗi khi phân tích tệp CSV. Hãy kiểm tra định dạng.', 'error');
+      showToast(`Lỗi khi phân tích tệp ${fileTypeName}. Hãy kiểm tra định dạng.`, 'error');
     }
+  };
+
+  const importMembersFromCSV = (text: string) => {
+    const rows = parseCSV(text);
+    importMembersFromRows(rows, 'CSV');
   };
 
   const parseCSV = (text: string): string[][] => {
@@ -300,14 +495,142 @@ export default function AdminSection({
     const file = e.target.files?.[0];
     if (!file) return;
     
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (text) {
-        importMembersFromCSV(text);
-      }
-    };
-    reader.readAsText(file, 'UTF-8');
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+
+    if (fileExtension === 'csv') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (text) {
+          importMembersFromCSV(text);
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+          const rows = rawRows.map(row => row.map(cell => cell === null || cell === undefined ? '' : String(cell)));
+          
+          importMembersFromRows(rows, 'Excel');
+        } catch (err) {
+          console.error(err);
+          showToast('Lỗi khi phân tích tệp Excel. Vui lòng kiểm tra định dạng.', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (fileExtension === 'docx' || fileExtension === 'doc') {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const arrayBuffer = event.target?.result as ArrayBuffer;
+          const result = await mammoth.convertToHtml({ arrayBuffer });
+          const html = result.value;
+          
+          const parsed = parseWordDocument(html);
+          if (parsed) {
+            let parentIdVal: string | undefined = undefined;
+            if (parsed.parentRaw) {
+              const parentNameClean = parsed.parentRaw.replace(/Họ tên Cha\s*:\s*/i, '').replace(/Họ tên Mẹ\s*:\s*/i, '').trim().toLowerCase();
+              const matchedParent = members.find(m => m.fullName.trim().toLowerCase() === parentNameClean);
+              if (matchedParent) {
+                parentIdVal = matchedParent.id;
+              }
+            }
+
+            const newMem: Member = {
+              id: `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              fullName: parsed.fullName,
+              generation: parsed.generationVal,
+              gender: parsed.genderVal,
+              isDeceased: parsed.isDeceasedVal,
+              birthDate: parsed.birthDateVal || undefined,
+              deathDate: parsed.isDeceasedVal ? (parsed.deathDateVal || undefined) : undefined,
+              deathAnniversaryLunar: parsed.isDeceasedVal ? (parsed.deathAnniversaryLunarVal || undefined) : undefined,
+              spouseName: parsed.spouseNameVal || undefined,
+              spouseType: parsed.spouseNameVal ? (parsed.spouseTypeVal || undefined) : undefined,
+              parentId: parentIdVal,
+              relationshipToHead: parsed.relationshipToHeadVal || undefined,
+              chiBranch: parsed.chiBranchVal || 'Chi Cả',
+              birthPlace: parsed.birthPlaceVal || undefined,
+              restingPlace: parsed.isDeceasedVal ? (parsed.restingPlaceVal || undefined) : undefined,
+              contact: !parsed.isDeceasedVal ? (parsed.contactVal || undefined) : undefined,
+              story: parsed.storyVal || undefined,
+              education: parsed.educationVal || undefined,
+              job: parsed.jobVal || undefined
+            };
+
+            onAddMember(newMem);
+            showToast(`Tải lên thành công! Đã thêm thành viên: ${newMem.fullName}`);
+          } else {
+            showToast('Không tìm thấy họ tên thành viên hợp lệ trong tệp Word. Hãy chắc chắn đã điền mục này.', 'error');
+          }
+        } catch (err) {
+          console.error(err);
+          showToast('Lỗi khi phân tích tệp Word. Vui lòng kiểm tra định dạng.', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (fileExtension === 'pdf') {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const arrayBuffer = event.target?.result as ArrayBuffer;
+          const fullText = await parsePdfFile(arrayBuffer);
+          const parsed = parsePdfText(fullText);
+          
+          if (parsed) {
+            let parentIdVal: string | undefined = undefined;
+            if (parsed.parentRaw) {
+              const parentNameClean = parsed.parentRaw.replace(/Họ tên Cha\s*:\s*/i, '').replace(/Họ tên Mẹ\s*:\s*/i, '').trim().toLowerCase();
+              const matchedParent = members.find(m => m.fullName.trim().toLowerCase() === parentNameClean);
+              if (matchedParent) {
+                parentIdVal = matchedParent.id;
+              }
+            }
+
+            const newMem: Member = {
+              id: `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              fullName: parsed.fullName,
+              generation: parsed.generationVal,
+              gender: parsed.genderVal,
+              isDeceased: parsed.isDeceasedVal,
+              birthDate: parsed.birthDateVal || undefined,
+              deathDate: parsed.isDeceasedVal ? (parsed.deathDateVal || undefined) : undefined,
+              deathAnniversaryLunar: parsed.isDeceasedVal ? (parsed.deathAnniversaryLunarVal || undefined) : undefined,
+              spouseName: parsed.spouseNameVal || undefined,
+              spouseType: parsed.spouseNameVal ? (parsed.spouseTypeVal || undefined) : undefined,
+              parentId: parentIdVal,
+              relationshipToHead: parsed.relationshipToHeadVal || undefined,
+              chiBranch: parsed.chiBranchVal || 'Chi Cả',
+              birthPlace: parsed.birthPlaceVal || undefined,
+              restingPlace: parsed.isDeceasedVal ? (parsed.restingPlaceVal || undefined) : undefined,
+              contact: !parsed.isDeceasedVal ? (parsed.contactVal || undefined) : undefined,
+              story: parsed.storyVal || undefined,
+              education: parsed.educationVal || undefined,
+              job: parsed.jobVal || undefined
+            };
+
+            onAddMember(newMem);
+            showToast(`Tải lên thành công! Đã thêm thành viên: ${newMem.fullName}`);
+          } else {
+            showToast('Không thể phân tích họ tên thành viên trong biểu mẫu PDF. Hãy đảm bảo file đúng định dạng và có đầy đủ thông tin.', 'error');
+          }
+        } catch (err) {
+          console.error(err);
+          showToast('Lỗi khi phân tích tệp PDF. Vui lòng kiểm tra định dạng.', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      showToast('Định dạng tệp không được hỗ trợ. Hãy dùng .csv, .xlsx, .xls, .docx, .doc, .pdf', 'error');
+    }
+
     e.target.value = '';
   };
 
@@ -790,22 +1113,22 @@ export default function AdminSection({
                   {editingMemberId ? 'Cập Nhật Hồ Sơ Thành Viên' : 'Thêm Thành Viên Mới Vào Gia Phả'}
                 </h3>
                 <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
-                  {/* Hidden file input for CSV import */}
+                  {/* Hidden file input for CSV/Excel/Word/PDF import */}
                   <input
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileUpload}
-                    accept=".csv"
+                    accept=".csv, .xlsx, .xls, .docx, .doc, .pdf"
                     className="hidden"
                   />
-                  {/* Upload list CSV */}
+                  {/* Upload list */}
                   <button
                     type="button"
                     onClick={triggerFileInput}
-                    title="Tải lên danh sách thành viên từ máy tính (.csv)"
+                    title="Tải lên tệp biểu mẫu từ máy tính (.csv, .xlsx, .xls, .docx, .doc, .pdf)"
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition text-[10px] font-bold focus:outline-none cursor-pointer shadow-xs"
                   >
-                    <Upload className="w-3.5 h-3.5" /> Tải Lên Danh Sách (.csv)
+                    <Upload className="w-3.5 h-3.5" /> Tải Lên Biểu Mẫu (Excel, Word, PDF, CSV)
                   </button>
                   {/* Word Template download */}
                   <button
