@@ -107,6 +107,225 @@ function isTableMissingError(error: any): boolean {
   );
 }
 
+// Biến lưu cấu trúc cột phát hiện được từ database
+let useLowercaseColumnsForMembers = false;
+let useLowercaseColumnsForAnnouncements = false;
+let useLowercaseColumnsForMemories = false;
+
+// Helper to check if an error is due to missing columns
+function isColumnMissingError(error: any): boolean {
+  if (!error) return false;
+  const code = error.code;
+  const msg = (error.message || '').toLowerCase();
+  return code === '42703' || (msg.includes('column') && msg.includes('does not exist'));
+}
+
+// Helper to clean payload from undefined properties
+function cleanPayload<T extends Record<string, any>>(obj: T): any {
+  const cleaned: any = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) {
+      cleaned[key] = val;
+    }
+  }
+  return cleaned;
+}
+
+function mapToCamelCase(row: any): Member {
+  const m: any = {};
+  
+  const keysMapping: Record<string, string> = {
+    id: 'id',
+    fullname: 'fullName',
+    fullName: 'fullName',
+    generation: 'generation',
+    gender: 'gender',
+    birthdate: 'birthDate',
+    birthDate: 'birthDate',
+    deathdate: 'deathDate',
+    deathDate: 'deathDate',
+    deathanniversarylunar: 'deathAnniversaryLunar',
+    deathAnniversaryLunar: 'deathAnniversaryLunar',
+    isdeceased: 'isDeceased',
+    isDeceased: 'isDeceased',
+    spousename: 'spouseName',
+    spouseName: 'spouseName',
+    spousetype: 'spouseType',
+    spouseType: 'spouseType',
+    parentid: 'parentId',
+    parentId: 'parentId',
+    motherid: 'motherId',
+    motherId: 'motherId',
+    relationshiptohead: 'relationshipToHead',
+    relationshipToHead: 'relationshipToHead',
+    chibranch: 'chiBranch',
+    chiBranch: 'chiBranch',
+    birthplace: 'birthPlace',
+    birthPlace: 'birthPlace',
+    restingplace: 'restingPlace',
+    restingPlace: 'restingPlace',
+    contact: 'contact',
+    story: 'story',
+    education: 'education',
+    job: 'job',
+    spouses: 'spouses'
+  };
+
+  for (const [key, val] of Object.entries(row)) {
+    const lowerKey = key.toLowerCase();
+    const mappedKey = keysMapping[key] || keysMapping[lowerKey] || key;
+    m[mappedKey] = val;
+  }
+
+  if (m.isDeceased !== undefined) {
+    m.isDeceased = String(m.isDeceased) === 'true' || m.isDeceased === true;
+  }
+
+  return m as Member;
+}
+
+function mapToDatabaseCasing(member: Member, useLowercase: boolean): any {
+  if (!useLowercase) {
+    return member;
+  }
+  
+  const dbObj: any = {};
+  const mapping: Record<string, string> = {
+    id: 'id',
+    fullName: 'fullname',
+    generation: 'generation',
+    gender: 'gender',
+    birthDate: 'birthdate',
+    deathDate: 'deathdate',
+    deathAnniversaryLunar: 'deathanniversarylunar',
+    isDeceased: 'isdeceased',
+    spouseName: 'spousename',
+    spouseType: 'spousetype',
+    parentId: 'parentid',
+    motherId: 'motherid',
+    relationshipToHead: 'relationshiptohead',
+    chiBranch: 'chibranch',
+    birthPlace: 'birthplace',
+    restingPlace: 'restingplace',
+    contact: 'contact',
+    story: 'story',
+    education: 'education',
+    job: 'job',
+    spouses: 'spouses'
+  };
+
+  for (const [key, val] of Object.entries(member)) {
+    const dbKey = mapping[key] || key;
+    dbObj[dbKey] = val;
+  }
+  return dbObj;
+}
+
+function mapToCamelCaseAnn(row: any): Announcement {
+  const a: any = {};
+  const keysMapping: Record<string, string> = {
+    id: 'id',
+    title: 'title',
+    content: 'content',
+    date: 'date',
+    category: 'category',
+    imageurl: 'imageUrl',
+    imageUrl: 'imageUrl',
+    youtubeurl: 'youtubeUrl',
+    youtubeUrl: 'youtubeUrl',
+    driveurl: 'driveUrl',
+    driveUrl: 'driveUrl'
+  };
+
+  for (const [key, val] of Object.entries(row)) {
+    const lowerKey = key.toLowerCase();
+    const mappedKey = keysMapping[key] || keysMapping[lowerKey] || key;
+    a[mappedKey] = val;
+  }
+  return a as Announcement;
+}
+
+function mapToDatabaseCasingAnn(ann: Announcement, useLowercase: boolean): any {
+  if (!useLowercase) {
+    return ann;
+  }
+  const dbObj: any = {};
+  const mapping: Record<string, string> = {
+    id: 'id',
+    title: 'title',
+    content: 'content',
+    date: 'date',
+    category: 'category',
+    imageUrl: 'imageurl',
+    youtubeUrl: 'youtubeurl',
+    driveUrl: 'driveurl'
+  };
+
+  for (const [key, val] of Object.entries(ann)) {
+    const dbKey = mapping[key] || key;
+    dbObj[dbKey] = val;
+  }
+  return dbObj;
+}
+
+function mapToCamelCaseMem(row: any): MemoryWall {
+  const m: any = {};
+  const keysMapping: Record<string, string> = {
+    id: 'id',
+    author: 'author',
+    targetmemberid: 'targetMemberId',
+    targetMemberId: 'targetMemberId',
+    targetmembername: 'targetMemberName',
+    targetMemberName: 'targetMemberName',
+    relationship: 'relationship',
+    content: 'content',
+    timestamp: 'timestamp',
+    candlelit: 'candleLit',
+    candleLit: 'candleLit',
+    incenseburned: 'incenseBurned',
+    incenseBurned: 'incenseBurned'
+  };
+
+  for (const [key, val] of Object.entries(row)) {
+    const lowerKey = key.toLowerCase();
+    const mappedKey = keysMapping[key] || keysMapping[lowerKey] || key;
+    m[mappedKey] = val;
+  }
+  
+  if (m.candleLit !== undefined) {
+    m.candleLit = String(m.candleLit) === 'true' || m.candleLit === true;
+  }
+  if (m.incenseBurned !== undefined) {
+    m.incenseBurned = String(m.incenseBurned) === 'true' || m.incenseBurned === true;
+  }
+  
+  return m as MemoryWall;
+}
+
+function mapToDatabaseCasingMem(mem: MemoryWall, useLowercase: boolean): any {
+  if (!useLowercase) {
+    return mem;
+  }
+  const dbObj: any = {};
+  const mapping: Record<string, string> = {
+    id: 'id',
+    author: 'author',
+    targetMemberId: 'targetmemberid',
+    targetMemberName: 'targetmembername',
+    relationship: 'relationship',
+    content: 'content',
+    timestamp: 'timestamp',
+    candleLit: 'candlelit',
+    incenseBurned: 'incenseburned'
+  };
+
+  for (const [key, val] of Object.entries(mem)) {
+    const dbKey = mapping[key] || key;
+    dbObj[dbKey] = val;
+  }
+  return dbObj;
+}
+
 /**
  * 1. QUẢN LÝ THÀNH VIÊN (MEMBERS)
  */
@@ -124,52 +343,73 @@ export async function dbGetMembers(localBackup?: Member[]): Promise<{ data: Memb
       throw error;
     }
 
+    if (data && data.length > 0) {
+      const firstRow = data[0];
+      if ('fullname' in firstRow || 'birthdate' in firstRow) {
+        useLowercaseColumnsForMembers = true;
+      }
+    }
+
     // Nếu bảng tồn tại nhưng rỗng, thực hiện seed dữ liệu ban đầu từ localBackup hoặc INITIAL_MEMBERS
     if (!data || data.length === 0) {
       console.log('Bảng members trống, tự động seed dữ liệu...');
       const seedSource = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_MEMBERS;
-      const seedData = seedSource.map(member => {
-        const dbMember = { ...member };
-        if (member.spouses) {
-          (dbMember as any).spouses = typeof member.spouses === 'string' ? member.spouses : JSON.stringify(member.spouses);
-        } else if (member.spouseName) {
-          const spousesArr = [{ id: 'default-' + member.id, name: member.spouseName, type: member.spouseType || '' }];
-          (dbMember as any).spouses = JSON.stringify(spousesArr);
+      const prepareSeedPayloads = (useLower: boolean) => {
+        return seedSource.map(member => {
+          const dbMember = { ...member };
+          if (member.spouses) {
+            (dbMember as any).spouses = typeof member.spouses === 'string' ? member.spouses : JSON.stringify(member.spouses);
+          } else if (member.spouseName) {
+            const spousesArr = [{ id: 'default-' + member.id, name: member.spouseName, type: member.spouseType || '' }];
+            (dbMember as any).spouses = JSON.stringify(spousesArr);
+          }
+          return cleanPayload(mapToDatabaseCasing(dbMember, useLower));
+        });
+      };
+
+      const payloads1 = prepareSeedPayloads(useLowercaseColumnsForMembers);
+      const { error: seedError1 } = await supabase.from('members').insert(payloads1);
+      if (seedError1) {
+        if (isColumnMissingError(seedError1)) {
+          console.log('Phát hiện sai lệch casing cột khi seed, đang thử lại với casing khác...');
+          useLowercaseColumnsForMembers = !useLowercaseColumnsForMembers;
+          const payloads2 = prepareSeedPayloads(useLowercaseColumnsForMembers);
+          const { error: seedError2 } = await supabase.from('members').insert(payloads2);
+          if (seedError2) throw seedError2;
+        } else {
+          throw seedError1;
         }
-        return dbMember;
-      });
-      const { error: seedError } = await supabase.from('members').insert(seedData);
-      if (!seedError) {
-        return { data: seedSource, needsSetup: false };
       }
+      return { data: seedSource, needsSetup: false };
     }
 
     const normalizedData = (data || []).map((item: any) => {
+      const camelItem = mapToCamelCase(item);
       let spousesArr = [];
-      if (item.spouses) {
-        if (typeof item.spouses === 'string') {
+      if (camelItem.spouses) {
+        if (typeof camelItem.spouses === 'string') {
           try {
-            spousesArr = JSON.parse(item.spouses);
+            spousesArr = JSON.parse(camelItem.spouses);
           } catch (e) {
             console.error('Lỗi parse spouses:', e);
           }
-        } else if (Array.isArray(item.spouses)) {
-          spousesArr = item.spouses;
+        } else if (Array.isArray(camelItem.spouses)) {
+          spousesArr = camelItem.spouses;
         }
-      } else if (item.spouseName) {
+      } else if (camelItem.spouseName) {
         // Cố gắng tách nếu có dấu & hoặc và
-        if (item.spouseName.includes('&')) {
-          spousesArr = item.spouseName.split('&').map((s: string, idx: number) => ({
-            id: `default-${item.id}-${idx}`,
+        if (camelItem.spouseName.includes('&')) {
+          spousesArr = camelItem.spouseName.split('&').map((s: string, idx: number) => ({
+            id: `default-${camelItem.id}-${idx}`,
             name: s.trim(),
             type: idx === 0 ? 'Vợ cả' : 'Vợ hai'
           }));
         } else {
-          spousesArr = [{ id: 'default-' + item.id, name: item.spouseName, type: item.spouseType || '' }];
+          spousesArr = [{ id: 'default-' + camelItem.id, name: camelItem.spouseName, type: camelItem.spouseType || '' }];
         }
       }
       return {
-        ...item,
+        ...camelItem,
         spouses: spousesArr
       } as Member;
     });
@@ -191,8 +431,21 @@ export async function dbAddMember(member: Member): Promise<boolean> {
     } else {
       (dbMember as any).spouses = null;
     }
-    const { error } = await supabase.from('members').insert(dbMember);
-    if (error) throw error;
+
+    const payload1 = cleanPayload(mapToDatabaseCasing(dbMember, useLowercaseColumnsForMembers));
+    const { error: error1 } = await supabase.from('members').insert(payload1);
+    
+    if (error1) {
+      if (isColumnMissingError(error1)) {
+        console.log('Phát hiện sai lệch casing cột khi thêm, đang thử lại với casing khác...');
+        useLowercaseColumnsForMembers = !useLowercaseColumnsForMembers;
+        const payload2 = cleanPayload(mapToDatabaseCasing(dbMember, useLowercaseColumnsForMembers));
+        const { error: error2 } = await supabase.from('members').insert(payload2);
+        if (error2) throw error2;
+        return true;
+      }
+      throw error1;
+    }
     return true;
   } catch (err) {
     console.error('Lỗi khi thêm thành viên vào Supabase:', err);
@@ -210,11 +463,27 @@ export async function dbUpdateMember(member: Member): Promise<boolean> {
     } else {
       (dbMember as any).spouses = null;
     }
-    const { error } = await supabase
+
+    const payload1 = cleanPayload(mapToDatabaseCasing(dbMember, useLowercaseColumnsForMembers));
+    const { error: error1 } = await supabase
       .from('members')
-      .update(dbMember)
+      .update(payload1)
       .eq('id', member.id);
-    if (error) throw error;
+
+    if (error1) {
+      if (isColumnMissingError(error1)) {
+        console.log('Phát hiện sai lệch casing cột khi cập nhật, đang thử lại với casing khác...');
+        useLowercaseColumnsForMembers = !useLowercaseColumnsForMembers;
+        const payload2 = cleanPayload(mapToDatabaseCasing(dbMember, useLowercaseColumnsForMembers));
+        const { error: error2 } = await supabase
+          .from('members')
+          .update(payload2)
+          .eq('id', member.id);
+        if (error2) throw error2;
+        return true;
+      }
+      throw error1;
+    }
     return true;
   } catch (err) {
     console.error('Lỗi khi cập nhật thành viên trong Supabase:', err);
@@ -245,23 +514,35 @@ export async function dbSyncAllMembers(members: Member[]): Promise<boolean> {
       .neq('id', 'dummy_id_never_exists');
     if (deleteError) throw deleteError;
 
-    // Chuẩn bị payload đồng bộ
-    const payload = members.map(member => {
-      const dbMember = { ...member };
-      if (member.spouses && member.spouses.length > 0) {
-        dbMember.spouseName = member.spouses.map(s => s.name).join(' & ');
-        dbMember.spouseType = member.spouses[0].type || '';
-        (dbMember as any).spouses = JSON.stringify(member.spouses);
-      } else {
-        (dbMember as any).spouses = null;
-      }
-      return dbMember;
-    });
+    // Chuẩn bị danh sách đồng bộ
+    const preparePayloads = (useLower: boolean) => {
+      return members.map(member => {
+        const dbMember = { ...member };
+        if (member.spouses && member.spouses.length > 0) {
+          dbMember.spouseName = member.spouses.map(s => s.name).join(' & ');
+          dbMember.spouseType = member.spouses[0].type || '';
+          (dbMember as any).spouses = JSON.stringify(member.spouses);
+        } else {
+          (dbMember as any).spouses = null;
+        }
+        return cleanPayload(mapToDatabaseCasing(dbMember, useLower));
+      });
+    };
 
-    if (payload.length > 0) {
-      // Thêm toàn bộ danh sách mới vào database
-      const { error: insertError } = await supabase.from('members').insert(payload);
-      if (insertError) throw insertError;
+    if (members.length > 0) {
+      const payloads1 = preparePayloads(useLowercaseColumnsForMembers);
+      const { error: insertError1 } = await supabase.from('members').insert(payloads1);
+      if (insertError1) {
+        if (isColumnMissingError(insertError1)) {
+          console.log('Phát hiện sai lệch casing cột khi đồng bộ, đang thử lại với casing khác...');
+          useLowercaseColumnsForMembers = !useLowercaseColumnsForMembers;
+          const payloads2 = preparePayloads(useLowercaseColumnsForMembers);
+          const { error: insertError2 } = await supabase.from('members').insert(payloads2);
+          if (insertError2) throw insertError2;
+        } else {
+          throw insertError1;
+        }
+      }
     }
     return true;
   } catch (err) {
@@ -287,16 +568,38 @@ export async function dbGetAnnouncements(localBackup?: Announcement[]): Promise<
       throw error;
     }
 
-    if (!data || data.length === 0) {
-      console.log('Bảng announcements trống, tự động seed dữ liệu...');
-      const seedSource = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_ANNOUNCEMENTS;
-      const { error: seedError } = await supabase.from('announcements').insert(seedSource);
-      if (!seedError) {
-        return { data: seedSource, needsSetup: false };
+    if (data && data.length > 0) {
+      const firstRow = data[0];
+      if ('imageurl' in firstRow || 'youtubeurl' in firstRow) {
+        useLowercaseColumnsForAnnouncements = true;
       }
     }
 
-    return { data: data || [], needsSetup: false };
+    if (!data || data.length === 0) {
+      console.log('Bảng announcements trống, tự động seed dữ liệu...');
+      const seedSource = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_ANNOUNCEMENTS;
+      const prepareSeedPayloads = (useLower: boolean) => {
+        return seedSource.map(ann => cleanPayload(mapToDatabaseCasingAnn(ann, useLower)));
+      };
+
+      const payloads1 = prepareSeedPayloads(useLowercaseColumnsForAnnouncements);
+      const { error: seedError1 } = await supabase.from('announcements').insert(payloads1);
+      if (seedError1) {
+        if (isColumnMissingError(seedError1)) {
+          console.log('Phát hiện sai lệch casing cột khi seed thông báo, đang thử lại...');
+          useLowercaseColumnsForAnnouncements = !useLowercaseColumnsForAnnouncements;
+          const payloads2 = prepareSeedPayloads(useLowercaseColumnsForAnnouncements);
+          const { error: seedError2 } = await supabase.from('announcements').insert(payloads2);
+          if (seedError2) throw seedError2;
+        } else {
+          throw seedError1;
+        }
+      }
+      return { data: seedSource, needsSetup: false };
+    }
+
+    const normalizedData = data.map(item => mapToCamelCaseAnn(item));
+    return { data: normalizedData, needsSetup: false };
   } catch (err: any) {
     console.error('Lỗi khi lấy thông báo từ Supabase:', err);
     return { data: [], needsSetup: false, error: err.message };
@@ -305,8 +608,20 @@ export async function dbGetAnnouncements(localBackup?: Announcement[]): Promise<
 
 export async function dbAddAnnouncement(ann: Announcement): Promise<boolean> {
   try {
-    const { error } = await supabase.from('announcements').insert(ann);
-    if (error) throw error;
+    const payload1 = cleanPayload(mapToDatabaseCasingAnn(ann, useLowercaseColumnsForAnnouncements));
+    const { error: error1 } = await supabase.from('announcements').insert(payload1);
+    
+    if (error1) {
+      if (isColumnMissingError(error1)) {
+        console.log('Phát hiện sai lệch casing cột khi thêm thông báo, đang thử lại...');
+        useLowercaseColumnsForAnnouncements = !useLowercaseColumnsForAnnouncements;
+        const payload2 = cleanPayload(mapToDatabaseCasingAnn(ann, useLowercaseColumnsForAnnouncements));
+        const { error: error2 } = await supabase.from('announcements').insert(payload2);
+        if (error2) throw error2;
+        return true;
+      }
+      throw error1;
+    }
     return true;
   } catch (err) {
     console.error('Lỗi khi thêm thông báo vào Supabase:', err);
@@ -316,11 +631,26 @@ export async function dbAddAnnouncement(ann: Announcement): Promise<boolean> {
 
 export async function dbUpdateAnnouncement(ann: Announcement): Promise<boolean> {
   try {
-    const { error } = await supabase
+    const payload1 = cleanPayload(mapToDatabaseCasingAnn(ann, useLowercaseColumnsForAnnouncements));
+    const { error: error1 } = await supabase
       .from('announcements')
-      .update(ann)
+      .update(payload1)
       .eq('id', ann.id);
-    if (error) throw error;
+
+    if (error1) {
+      if (isColumnMissingError(error1)) {
+        console.log('Phát hiện sai lệch casing cột khi cập nhật thông báo, đang thử lại...');
+        useLowercaseColumnsForAnnouncements = !useLowercaseColumnsForAnnouncements;
+        const payload2 = cleanPayload(mapToDatabaseCasingAnn(ann, useLowercaseColumnsForAnnouncements));
+        const { error: error2 } = await supabase
+          .from('announcements')
+          .update(payload2)
+          .eq('id', ann.id);
+        if (error2) throw error2;
+        return true;
+      }
+      throw error1;
+    }
     return true;
   } catch (err) {
     console.error('Lỗi khi cập nhật thông báo trong Supabase:', err);
@@ -359,16 +689,38 @@ export async function dbGetMemories(localBackup?: MemoryWall[]): Promise<{ data:
       throw error;
     }
 
-    if (!data || data.length === 0) {
-      console.log('Bảng memories trống, tự động seed dữ liệu...');
-      const seedSource = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_MEMORIES;
-      const { error: seedError } = await supabase.from('memories').insert(seedSource);
-      if (!seedError) {
-        return { data: seedSource, needsSetup: false };
+    if (data && data.length > 0) {
+      const firstRow = data[0];
+      if ('targetmemberid' in firstRow || 'candlelit' in firstRow) {
+        useLowercaseColumnsForMemories = true;
       }
     }
 
-    return { data: data || [], needsSetup: false };
+    if (!data || data.length === 0) {
+      console.log('Bảng memories trống, tự động seed dữ liệu...');
+      const seedSource = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_MEMORIES;
+      const prepareSeedPayloads = (useLower: boolean) => {
+        return seedSource.map(mem => cleanPayload(mapToDatabaseCasingMem(mem, useLower)));
+      };
+
+      const payloads1 = prepareSeedPayloads(useLowercaseColumnsForMemories);
+      const { error: seedError1 } = await supabase.from('memories').insert(payloads1);
+      if (seedError1) {
+        if (isColumnMissingError(seedError1)) {
+          console.log('Phát hiện sai lệch casing cột khi seed lời tưởng nhớ, đang thử lại...');
+          useLowercaseColumnsForMemories = !useLowercaseColumnsForMemories;
+          const payloads2 = prepareSeedPayloads(useLowercaseColumnsForMemories);
+          const { error: seedError2 } = await supabase.from('memories').insert(payloads2);
+          if (seedError2) throw seedError2;
+        } else {
+          throw seedError1;
+        }
+      }
+      return { data: seedSource, needsSetup: false };
+    }
+
+    const normalizedData = data.map(item => mapToCamelCaseMem(item));
+    return { data: normalizedData, needsSetup: false };
   } catch (err: any) {
     console.error('Lỗi khi lấy lời tưởng nhớ từ Supabase:', err);
     return { data: [], needsSetup: false, error: err.message };
@@ -377,8 +729,20 @@ export async function dbGetMemories(localBackup?: MemoryWall[]): Promise<{ data:
 
 export async function dbAddMemory(mem: MemoryWall): Promise<boolean> {
   try {
-    const { error } = await supabase.from('memories').insert(mem);
-    if (error) throw error;
+    const payload1 = cleanPayload(mapToDatabaseCasingMem(mem, useLowercaseColumnsForMemories));
+    const { error: error1 } = await supabase.from('memories').insert(payload1);
+
+    if (error1) {
+      if (isColumnMissingError(error1)) {
+        console.log('Phát hiện sai lệch casing cột khi thêm lời tưởng nhớ, đang thử lại...');
+        useLowercaseColumnsForMemories = !useLowercaseColumnsForMemories;
+        const payload2 = cleanPayload(mapToDatabaseCasingMem(mem, useLowercaseColumnsForMemories));
+        const { error: error2 } = await supabase.from('memories').insert(payload2);
+        if (error2) throw error2;
+        return true;
+      }
+      throw error1;
+    }
     return true;
   } catch (err) {
     console.error('Lỗi khi thêm lời tưởng nhớ vào Supabase:', err);
@@ -410,19 +774,26 @@ export async function dbGetSettings(localBackup?: Record<string, string>): Promi
     }
 
     // Nếu có localBackup, hãy kiểm tra và bổ sung các cấu hình tùy chỉnh lên đám mây
-    if (localBackup && Object.keys(localBackup).length > 0) {
+    if (localBackup && typeof localBackup === 'object' && !Array.isArray(localBackup)) {
       let hasNewOrChanged = false;
       const promises: Promise<any>[] = [];
 
       for (const [key, val] of Object.entries(localBackup)) {
+        if (val === undefined || val === null) continue;
         const isDbDefault = !data || data.length <= 5; // Có khả năng vừa chạy SQL setup mặc định
         const isDifferent = settingsMap[key] !== val;
 
         if (!(key in settingsMap) || (isDifferent && isDbDefault)) {
           hasNewOrChanged = true;
           promises.push((async () => {
-            const { error: upsertErr } = await supabase.from('settings').upsert({ key, value: val });
-            if (upsertErr) throw upsertErr;
+            try {
+              const { error: upsertErr } = await supabase.from('settings').upsert({ key, value: val });
+              if (upsertErr) {
+                console.warn(`Không thể đồng bộ cấu hình ${key} lên đám mây:`, upsertErr);
+              }
+            } catch (err) {
+              console.warn(`Lỗi ngoại lệ khi đồng bộ cấu hình ${key}:`, err);
+            }
           })());
           settingsMap[key] = val;
         }
