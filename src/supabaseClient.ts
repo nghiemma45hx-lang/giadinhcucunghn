@@ -98,11 +98,15 @@ ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
 // Helper to check if an error is due to missing tables
 function isTableMissingError(error: any): boolean {
   if (!error) return false;
-  const code = error.code;
+  const code = String(error.code || '');
   const msg = (error.message || '').toLowerCase();
   return (
     code === 'PGRST205' ||
+    code === '42P01' || // PostgreSQL undefined_table code
     msg.includes('could not find the table') ||
+    msg.includes('does not exist') ||
+    msg.includes('not found') ||
+    msg.includes('no schema cache') ||
     (msg.includes('relation') && (msg.includes('does not exist') || msg.includes('not found')))
   );
 }
@@ -115,9 +119,41 @@ let useLowercaseColumnsForMemories = false;
 // Helper to check if an error is due to missing columns
 function isColumnMissingError(error: any): boolean {
   if (!error) return false;
-  const code = error.code;
+  const code = String(error.code || '');
   const msg = (error.message || '').toLowerCase();
-  return code === '42703' || (msg.includes('column') && msg.includes('does not exist'));
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    (msg.includes('column') && (msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('not find')))
+  );
+}
+
+// Helper to check if an error is due to Row-Level Security
+function isRlsError(error: any): boolean {
+  if (!error) return false;
+  const code = String(error.code || '');
+  const msg = (error.message || '').toLowerCase();
+  return code === '42501' || msg.includes('row-level security') || msg.includes('violates');
+}
+
+// Helper to get missing column name from PostgREST error
+function getMissingColumnName(error: any): string | null {
+  if (!error) return null;
+  const msg = error.message || '';
+  
+  // Pattern 1: Could not find the 'spouses' column of 'members' in the schema cache
+  const m1 = msg.match(/Could not find the '([^']+)' column/);
+  if (m1 && m1[1]) return m1[1];
+  
+  // Pattern 2: column "spouses" of relation "members" does not exist
+  const m2 = msg.match(/column "([^"]+)"/);
+  if (m2 && m2[1]) return m2[1];
+
+  // Pattern 3: general column name in single quotes
+  const m3 = msg.match(/column '([^']+)'/);
+  if (m3 && m3[1]) return m3[1];
+
+  return null;
 }
 
 // Helper to clean payload from undefined properties
@@ -129,6 +165,126 @@ function cleanPayload<T extends Record<string, any>>(obj: T): any {
     }
   }
   return cleaned;
+}
+
+// Robust insert with retry that automatically prunes missing columns from payload
+async function safeInsertWithRetry(table: string, payloads: any | any[]): Promise<{ data: any; error: any }> {
+  let currentPayloads = Array.isArray(payloads) ? [...payloads] : [payloads];
+  let attempts = 0;
+  const maxAttempts = 5;
+  let lastError: any = null;
+
+  while (attempts < maxAttempts) {
+    const { data, error } = await supabase.from(table).insert(currentPayloads);
+    if (!error) {
+      return { data, error: null };
+    }
+
+    lastError = error;
+    if (isColumnMissingError(error)) {
+      const missingCol = getMissingColumnName(error);
+      if (missingCol) {
+        console.warn(`[Supabase] Bỏ qua cột '${missingCol}' không có trong cache/schema của bảng '${table}'`);
+        currentPayloads = currentPayloads.map(p => {
+          const copy = { ...p };
+          delete copy[missingCol];
+          // Also try removing its casing variations
+          const lowerCol = missingCol.toLowerCase();
+          for (const key of Object.keys(copy)) {
+            if (key.toLowerCase() === lowerCol) {
+              delete copy[key];
+            }
+          }
+          return copy;
+        });
+        attempts++;
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  return { data: null, error: lastError };
+}
+
+// Robust update with retry that automatically prunes missing columns from payload
+async function safeUpdateWithRetry(table: string, payload: any, eqKey: string, eqVal: any): Promise<{ data: any; error: any }> {
+  let currentPayload = { ...payload };
+  let attempts = 0;
+  const maxAttempts = 5;
+  let lastError: any = null;
+
+  while (attempts < maxAttempts) {
+    const { data, error } = await supabase
+      .from(table)
+      .update(currentPayload)
+      .eq(eqKey, eqVal);
+    if (!error) {
+      return { data, error: null };
+    }
+
+    lastError = error;
+    if (isColumnMissingError(error)) {
+      const missingCol = getMissingColumnName(error);
+      if (missingCol) {
+        console.warn(`[Supabase] Bỏ qua cột '${missingCol}' không có trong cache/schema của bảng '${table}' khi cập nhật`);
+        delete currentPayload[missingCol];
+        const lowerCol = missingCol.toLowerCase();
+        for (const key of Object.keys(currentPayload)) {
+          if (key.toLowerCase() === lowerCol) {
+            delete currentPayload[key];
+          }
+        }
+        attempts++;
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  return { data: null, error: lastError };
+}
+
+// Robust upsert with retry that automatically prunes missing columns from payload
+async function safeUpsertWithRetry(table: string, payload: any): Promise<{ data: any; error: any }> {
+  let currentPayloads = Array.isArray(payload) ? [...payload] : [payload];
+  let attempts = 0;
+  const maxAttempts = 5;
+  let lastError: any = null;
+
+  while (attempts < maxAttempts) {
+    const { data, error } = await supabase.from(table).upsert(currentPayloads);
+    if (!error) {
+      return { data, error: null };
+    }
+
+    lastError = error;
+    if (isColumnMissingError(error)) {
+      const missingCol = getMissingColumnName(error);
+      if (missingCol) {
+        console.warn(`[Supabase] Bỏ qua cột '${missingCol}' không có trong cache/schema của bảng '${table}' khi upsert`);
+        currentPayloads = currentPayloads.map(p => {
+          const copy = { ...p };
+          delete copy[missingCol];
+          const lowerCol = missingCol.toLowerCase();
+          for (const key of Object.keys(copy)) {
+            if (key.toLowerCase() === lowerCol) {
+              delete copy[key];
+            }
+          }
+          return copy;
+        });
+        attempts++;
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  return { data: null, error: lastError };
 }
 
 function mapToCamelCase(row: any): Member {
@@ -368,17 +524,22 @@ export async function dbGetMembers(localBackup?: Member[]): Promise<{ data: Memb
       };
 
       const payloads1 = prepareSeedPayloads(useLowercaseColumnsForMembers);
-      const { error: seedError1 } = await supabase.from('members').insert(payloads1);
-      if (seedError1) {
-        if (isColumnMissingError(seedError1)) {
+      let { error: seedError } = await safeInsertWithRetry('members', payloads1);
+      if (seedError) {
+        if (isColumnMissingError(seedError)) {
           console.log('Phát hiện sai lệch casing cột khi seed, đang thử lại với casing khác...');
           useLowercaseColumnsForMembers = !useLowercaseColumnsForMembers;
           const payloads2 = prepareSeedPayloads(useLowercaseColumnsForMembers);
-          const { error: seedError2 } = await supabase.from('members').insert(payloads2);
-          if (seedError2) throw seedError2;
-        } else {
-          throw seedError1;
+          const { error: seedError2 } = await safeInsertWithRetry('members', payloads2);
+          seedError = seedError2;
         }
+      }
+      if (seedError) {
+        if (isRlsError(seedError)) {
+          console.warn('Không thể seed bảng members do dính chính sách Row-Level Security (RLS). Đang tải dữ liệu offline.');
+          return { data: seedSource, needsSetup: false };
+        }
+        throw seedError;
       }
       return { data: seedSource, needsSetup: false };
     }
@@ -433,14 +594,14 @@ export async function dbAddMember(member: Member): Promise<boolean> {
     }
 
     const payload1 = cleanPayload(mapToDatabaseCasing(dbMember, useLowercaseColumnsForMembers));
-    const { error: error1 } = await supabase.from('members').insert(payload1);
+    let { error: error1 } = await safeInsertWithRetry('members', payload1);
     
     if (error1) {
       if (isColumnMissingError(error1)) {
         console.log('Phát hiện sai lệch casing cột khi thêm, đang thử lại với casing khác...');
         useLowercaseColumnsForMembers = !useLowercaseColumnsForMembers;
         const payload2 = cleanPayload(mapToDatabaseCasing(dbMember, useLowercaseColumnsForMembers));
-        const { error: error2 } = await supabase.from('members').insert(payload2);
+        const { error: error2 } = await safeInsertWithRetry('members', payload2);
         if (error2) throw error2;
         return true;
       }
@@ -465,20 +626,14 @@ export async function dbUpdateMember(member: Member): Promise<boolean> {
     }
 
     const payload1 = cleanPayload(mapToDatabaseCasing(dbMember, useLowercaseColumnsForMembers));
-    const { error: error1 } = await supabase
-      .from('members')
-      .update(payload1)
-      .eq('id', member.id);
+    let { error: error1 } = await safeUpdateWithRetry('members', payload1, 'id', member.id);
 
     if (error1) {
       if (isColumnMissingError(error1)) {
         console.log('Phát hiện sai lệch casing cột khi cập nhật, đang thử lại với casing khác...');
         useLowercaseColumnsForMembers = !useLowercaseColumnsForMembers;
         const payload2 = cleanPayload(mapToDatabaseCasing(dbMember, useLowercaseColumnsForMembers));
-        const { error: error2 } = await supabase
-          .from('members')
-          .update(payload2)
-          .eq('id', member.id);
+        const { error: error2 } = await safeUpdateWithRetry('members', payload2, 'id', member.id);
         if (error2) throw error2;
         return true;
       }
@@ -531,16 +686,16 @@ export async function dbSyncAllMembers(members: Member[]): Promise<boolean> {
 
     if (members.length > 0) {
       const payloads1 = preparePayloads(useLowercaseColumnsForMembers);
-      const { error: insertError1 } = await supabase.from('members').insert(payloads1);
-      if (insertError1) {
-        if (isColumnMissingError(insertError1)) {
+      let { error: insertError } = await safeInsertWithRetry('members', payloads1);
+      if (insertError) {
+        if (isColumnMissingError(insertError)) {
           console.log('Phát hiện sai lệch casing cột khi đồng bộ, đang thử lại với casing khác...');
           useLowercaseColumnsForMembers = !useLowercaseColumnsForMembers;
           const payloads2 = preparePayloads(useLowercaseColumnsForMembers);
-          const { error: insertError2 } = await supabase.from('members').insert(payloads2);
+          const { error: insertError2 } = await safeInsertWithRetry('members', payloads2);
           if (insertError2) throw insertError2;
         } else {
-          throw insertError1;
+          throw insertError;
         }
       }
     }
@@ -583,17 +738,22 @@ export async function dbGetAnnouncements(localBackup?: Announcement[]): Promise<
       };
 
       const payloads1 = prepareSeedPayloads(useLowercaseColumnsForAnnouncements);
-      const { error: seedError1 } = await supabase.from('announcements').insert(payloads1);
-      if (seedError1) {
-        if (isColumnMissingError(seedError1)) {
+      let { error: seedError } = await safeInsertWithRetry('announcements', payloads1);
+      if (seedError) {
+        if (isColumnMissingError(seedError)) {
           console.log('Phát hiện sai lệch casing cột khi seed thông báo, đang thử lại...');
           useLowercaseColumnsForAnnouncements = !useLowercaseColumnsForAnnouncements;
           const payloads2 = prepareSeedPayloads(useLowercaseColumnsForAnnouncements);
-          const { error: seedError2 } = await supabase.from('announcements').insert(payloads2);
-          if (seedError2) throw seedError2;
-        } else {
-          throw seedError1;
+          const { error: seedError2 } = await safeInsertWithRetry('announcements', payloads2);
+          seedError = seedError2;
         }
+      }
+      if (seedError) {
+        if (isRlsError(seedError)) {
+          console.warn('Không thể seed bảng announcements do dính chính sách Row-Level Security (RLS). Đang tải dữ liệu offline.');
+          return { data: seedSource, needsSetup: false };
+        }
+        throw seedError;
       }
       return { data: seedSource, needsSetup: false };
     }
@@ -609,14 +769,14 @@ export async function dbGetAnnouncements(localBackup?: Announcement[]): Promise<
 export async function dbAddAnnouncement(ann: Announcement): Promise<boolean> {
   try {
     const payload1 = cleanPayload(mapToDatabaseCasingAnn(ann, useLowercaseColumnsForAnnouncements));
-    const { error: error1 } = await supabase.from('announcements').insert(payload1);
+    let { error: error1 } = await safeInsertWithRetry('announcements', payload1);
     
     if (error1) {
       if (isColumnMissingError(error1)) {
         console.log('Phát hiện sai lệch casing cột khi thêm thông báo, đang thử lại...');
         useLowercaseColumnsForAnnouncements = !useLowercaseColumnsForAnnouncements;
         const payload2 = cleanPayload(mapToDatabaseCasingAnn(ann, useLowercaseColumnsForAnnouncements));
-        const { error: error2 } = await supabase.from('announcements').insert(payload2);
+        const { error: error2 } = await safeInsertWithRetry('announcements', payload2);
         if (error2) throw error2;
         return true;
       }
@@ -632,20 +792,14 @@ export async function dbAddAnnouncement(ann: Announcement): Promise<boolean> {
 export async function dbUpdateAnnouncement(ann: Announcement): Promise<boolean> {
   try {
     const payload1 = cleanPayload(mapToDatabaseCasingAnn(ann, useLowercaseColumnsForAnnouncements));
-    const { error: error1 } = await supabase
-      .from('announcements')
-      .update(payload1)
-      .eq('id', ann.id);
+    let { error: error1 } = await safeUpdateWithRetry('announcements', payload1, 'id', ann.id);
 
     if (error1) {
       if (isColumnMissingError(error1)) {
         console.log('Phát hiện sai lệch casing cột khi cập nhật thông báo, đang thử lại...');
         useLowercaseColumnsForAnnouncements = !useLowercaseColumnsForAnnouncements;
         const payload2 = cleanPayload(mapToDatabaseCasingAnn(ann, useLowercaseColumnsForAnnouncements));
-        const { error: error2 } = await supabase
-          .from('announcements')
-          .update(payload2)
-          .eq('id', ann.id);
+        const { error: error2 } = await safeUpdateWithRetry('announcements', payload2, 'id', ann.id);
         if (error2) throw error2;
         return true;
       }
@@ -704,17 +858,22 @@ export async function dbGetMemories(localBackup?: MemoryWall[]): Promise<{ data:
       };
 
       const payloads1 = prepareSeedPayloads(useLowercaseColumnsForMemories);
-      const { error: seedError1 } = await supabase.from('memories').insert(payloads1);
-      if (seedError1) {
-        if (isColumnMissingError(seedError1)) {
+      let { error: seedError } = await safeInsertWithRetry('memories', payloads1);
+      if (seedError) {
+        if (isColumnMissingError(seedError)) {
           console.log('Phát hiện sai lệch casing cột khi seed lời tưởng nhớ, đang thử lại...');
           useLowercaseColumnsForMemories = !useLowercaseColumnsForMemories;
           const payloads2 = prepareSeedPayloads(useLowercaseColumnsForMemories);
-          const { error: seedError2 } = await supabase.from('memories').insert(payloads2);
-          if (seedError2) throw seedError2;
-        } else {
-          throw seedError1;
+          const { error: seedError2 } = await safeInsertWithRetry('memories', payloads2);
+          seedError = seedError2;
         }
+      }
+      if (seedError) {
+        if (isRlsError(seedError)) {
+          console.warn('Không thể seed bảng memories do dính chính sách Row-Level Security (RLS). Đang tải dữ liệu offline.');
+          return { data: seedSource, needsSetup: false };
+        }
+        throw seedError;
       }
       return { data: seedSource, needsSetup: false };
     }
@@ -730,14 +889,14 @@ export async function dbGetMemories(localBackup?: MemoryWall[]): Promise<{ data:
 export async function dbAddMemory(mem: MemoryWall): Promise<boolean> {
   try {
     const payload1 = cleanPayload(mapToDatabaseCasingMem(mem, useLowercaseColumnsForMemories));
-    const { error: error1 } = await supabase.from('memories').insert(payload1);
+    let { error: error1 } = await safeInsertWithRetry('memories', payload1);
 
     if (error1) {
       if (isColumnMissingError(error1)) {
         console.log('Phát hiện sai lệch casing cột khi thêm lời tưởng nhớ, đang thử lại...');
         useLowercaseColumnsForMemories = !useLowercaseColumnsForMemories;
         const payload2 = cleanPayload(mapToDatabaseCasingMem(mem, useLowercaseColumnsForMemories));
-        const { error: error2 } = await supabase.from('memories').insert(payload2);
+        const { error: error2 } = await safeInsertWithRetry('memories', payload2);
         if (error2) throw error2;
         return true;
       }
@@ -787,9 +946,13 @@ export async function dbGetSettings(localBackup?: Record<string, string>): Promi
           hasNewOrChanged = true;
           promises.push((async () => {
             try {
-              const { error: upsertErr } = await supabase.from('settings').upsert({ key, value: val });
+              const { error: upsertErr } = await safeUpsertWithRetry('settings', { key, value: val });
               if (upsertErr) {
-                console.warn(`Không thể đồng bộ cấu hình ${key} lên đám mây:`, upsertErr);
+                if (isRlsError(upsertErr)) {
+                  console.warn(`Không thể đồng bộ cấu hình ${key} lên đám mây do chính sách RLS.`);
+                } else {
+                  console.warn(`Không thể đồng bộ cấu hình ${key} lên đám mây:`, upsertErr.message);
+                }
               }
             } catch (err) {
               console.warn(`Lỗi ngoại lệ khi đồng bộ cấu hình ${key}:`, err);
@@ -814,10 +977,14 @@ export async function dbGetSettings(localBackup?: Record<string, string>): Promi
 
 export async function dbSaveSetting(key: string, value: string): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('settings')
-      .upsert({ key, value });
-    if (error) throw error;
+    const { error } = await safeUpsertWithRetry('settings', { key, value });
+    if (error) {
+      if (isRlsError(error)) {
+        console.warn(`Không thể lưu cấu hình ${key} vào Supabase do chính sách RLS.`);
+        return false;
+      }
+      throw error;
+    }
     return true;
   } catch (err) {
     console.error(`Lỗi khi lưu cấu hình ${key} vào Supabase:`, err);
