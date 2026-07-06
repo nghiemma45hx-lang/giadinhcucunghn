@@ -535,11 +535,8 @@ export async function dbGetMembers(localBackup?: Member[]): Promise<{ data: Memb
         }
       }
       if (seedError) {
-        if (isRlsError(seedError)) {
-          console.warn('Không thể seed bảng members do dính chính sách Row-Level Security (RLS). Đang tải dữ liệu offline.');
-          return { data: seedSource, needsSetup: false };
-        }
-        throw seedError;
+        console.warn('Không thể seed bảng members lên đám mây (do dính chính sách RLS hoặc sai lệch schema). Đang sử dụng dữ liệu offline:', seedError.message || seedError);
+        return { data: seedSource, needsSetup: false };
       }
       return { data: seedSource, needsSetup: false };
     }
@@ -577,8 +574,9 @@ export async function dbGetMembers(localBackup?: Member[]): Promise<{ data: Memb
 
     return { data: normalizedData, needsSetup: false };
   } catch (err: any) {
-    console.error('Lỗi khi lấy danh sách thành viên từ Supabase:', err);
-    return { data: [], needsSetup: false, error: err.message };
+    console.warn('Lỗi khi lấy danh sách thành viên từ Supabase, đang dùng dữ liệu offline:', err.message || err);
+    const fallback = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_MEMBERS;
+    return { data: fallback, needsSetup: false, error: err.message };
   }
 }
 
@@ -749,11 +747,8 @@ export async function dbGetAnnouncements(localBackup?: Announcement[]): Promise<
         }
       }
       if (seedError) {
-        if (isRlsError(seedError)) {
-          console.warn('Không thể seed bảng announcements do dính chính sách Row-Level Security (RLS). Đang tải dữ liệu offline.');
-          return { data: seedSource, needsSetup: false };
-        }
-        throw seedError;
+        console.warn('Không thể seed bảng announcements lên đám mây. Đang sử dụng dữ liệu offline:', seedError.message || seedError);
+        return { data: seedSource, needsSetup: false };
       }
       return { data: seedSource, needsSetup: false };
     }
@@ -761,8 +756,9 @@ export async function dbGetAnnouncements(localBackup?: Announcement[]): Promise<
     const normalizedData = data.map(item => mapToCamelCaseAnn(item));
     return { data: normalizedData, needsSetup: false };
   } catch (err: any) {
-    console.error('Lỗi khi lấy thông báo từ Supabase:', err);
-    return { data: [], needsSetup: false, error: err.message };
+    console.warn('Lỗi khi lấy thông báo từ Supabase, đang dùng dữ liệu offline:', err.message || err);
+    const fallback = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_ANNOUNCEMENTS;
+    return { data: fallback, needsSetup: false, error: err.message };
   }
 }
 
@@ -869,11 +865,8 @@ export async function dbGetMemories(localBackup?: MemoryWall[]): Promise<{ data:
         }
       }
       if (seedError) {
-        if (isRlsError(seedError)) {
-          console.warn('Không thể seed bảng memories do dính chính sách Row-Level Security (RLS). Đang tải dữ liệu offline.');
-          return { data: seedSource, needsSetup: false };
-        }
-        throw seedError;
+        console.warn('Không thể seed bảng memories lên đám mây. Đang sử dụng dữ liệu offline:', seedError.message || seedError);
+        return { data: seedSource, needsSetup: false };
       }
       return { data: seedSource, needsSetup: false };
     }
@@ -881,8 +874,9 @@ export async function dbGetMemories(localBackup?: MemoryWall[]): Promise<{ data:
     const normalizedData = data.map(item => mapToCamelCaseMem(item));
     return { data: normalizedData, needsSetup: false };
   } catch (err: any) {
-    console.error('Lỗi khi lấy lời tưởng nhớ từ Supabase:', err);
-    return { data: [], needsSetup: false, error: err.message };
+    console.warn('Lỗi khi lấy lời tưởng nhớ từ Supabase, đang dùng dữ liệu offline:', err.message || err);
+    const fallback = (localBackup && localBackup.length > 0) ? localBackup : INITIAL_MEMORIES;
+    return { data: fallback, needsSetup: false, error: err.message };
   }
 }
 
@@ -970,8 +964,8 @@ export async function dbGetSettings(localBackup?: Record<string, string>): Promi
 
     return { data: settingsMap, needsSetup: false };
   } catch (err: any) {
-    console.error('Lỗi khi lấy cấu hình từ Supabase:', err);
-    return { data: {}, needsSetup: false, error: err.message };
+    console.warn('Lỗi khi lấy cấu hình từ Supabase, đang dùng cấu hình offline:', err.message || err);
+    return { data: localBackup || {}, needsSetup: false, error: err.message };
   }
 }
 
